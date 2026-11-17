@@ -54,12 +54,12 @@
     return { musicxml: "musicxml", xml: "musicxml", mxl: "mxl", mid: "midi", midi: "midi", abc: "abc" }[ext.toLowerCase()] || null;
   };
 
-  // "book.pdf#page=24" → {file, page}.
+  // "book.pdf#page=24" → {file, page}; no page given is page null.
   function bookRef(s) {
     if (!s) return null;
     const [file, hash = ""] = String(s).split("#");
     const page = /page=(\d+)/.exec(hash);
-    return { file, page: page ? parseInt(page[1], 10) : 1 };
+    return { file, page: page ? parseInt(page[1], 10) : null };
   }
 
   // Resolves a link in a lesson against the lesson's own folder.

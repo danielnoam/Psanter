@@ -82,7 +82,7 @@
     const down = new Set();
     let base = 12 * (octave + 1);
     const key = (e) => (e.key || "").toLowerCase();
-    const skip = (e) => e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable || !enabled();
+    const skip = (e) => e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable || !enabled();
     function onDown(e) {
       if (skip(e)) return;
       const k = key(e);

@@ -35,6 +35,11 @@ and **Z** and **X** move an octave down and up.
 - **Speed**: slow it down until it's clean, then bring it back up.
 - **Loop**: drag across bars in the timeline to repeat them.
 - **Hands**: play one hand while the app plays the other.
+- **Key**: move the music up or down; the score keeps its written key.
+- The rising arrow beside the loop speeds the loop up 5% after each clean
+  pass. The red dot records what you play as a MIDI file.
+- The layout button at the top moves, hides and shows panels: the lesson,
+  the score, the keys, your progress and the book.
 
 ## Your own lessons
 
@@ -45,5 +50,9 @@ file for whole pieces:
 ```markdown
 [Minuet in G](pieces/minuet-in-g.musicxml "practice tempo=80 hands=right")
 ```
+
+A lesson can open a PDF book beside it with `book: my-book.pdf#page=12` in
+its front matter, and a link like [the finger numbers](book/keyboard-book.pdf#page=2)
+turns the book to that page.
 
 Lessons in a folder update here as soon as you save them in your editor.

@@ -43,15 +43,31 @@ watches it and reloads a lesson when you save it in your editor.
 - Each hand is yours, the app's (played to your piano or the built-in
   sound) or off.
 - Speed 25 to 150 %, loops by dragging over bars, metronome, count-in.
+- Auto speed-up: each clean pass of a loop goes 5% faster, up to a goal.
+- Transpose up or down a semitone at a time (the score keeps its key).
+- Free play, and recording anything you play as a MIDI file.
+
+### Progress
+- Each run and loop pass: right, late, missed, wrong, and how far off the
+  beat. Per piece: best tempo, runs, time practised and the bars that trip
+  you up, with a button to loop one.
+- Minutes per day for the last two weeks, and days in a row.
 
 ### Seeing it
 - The score (abcjs for ABC, OpenSheetMusicDisplay for MusicXML) follows
   along and marks each note hit, late or missed.
 - Falling notes over a keyboard, coloured by hand, lighting the keys you
   press.
-- Panels you can resize; light and dark themes.
+- Note names (letters or solfège) and finger numbers on the falling notes.
+- A PDF book in its own panel, keeping your page.
+- Panels you drag, resize, hide and show, with presets.
+- Light and dark themes, and a colour editor for both, with a readability
+  check and colours you can copy and paste.
 
 ### Playing it
 - Any MIDI piano (Web MIDI), with the app's notes sent back to it.
 - No piano: the computer's keyboard (A W S E D … from middle C, Z and X
   for octaves) or a click on the keys.
+- A built-in piano sound with a sustain pedal and a little room.
+- Shortcuts you can change, on the computer's keys or on piano keys you
+  never play.

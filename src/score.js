@@ -25,6 +25,17 @@
     return guess.map((g, i) => g || (i === 0 ? "right" : "left"));
   }
 
+  // startChar → the finger numbers written on that note or chord.
+  function abcFingers(vo) {
+    const out = new Map();
+    for (const line of vo.lines || []) for (const st of line.staff || []) for (const v of st.voices || []) for (const el of v) {
+      if (el.el_type !== "note" || !el.decoration) continue;
+      const f = el.decoration.filter((d) => /^[1-5]$/.test(d)).map(Number);
+      if (f.length) out.set(el.startChar, f);
+    }
+    return out;
+  }
+
   function abc(container, onClick) {
     let vo = null, events = [], refs = [], current = -1;
     const marked = new Map();
@@ -54,6 +65,7 @@
       const measureMs = vo.millisecondsPerMeasure();
       const wholeMs = measureMs / ((meter.num || 4) / (meter.den || 4));
       const hands = abcHands(text);
+      const fingers = abcFingers(vo);
       const notes = [];
       audio.tracks.forEach((track, i) => {
         for (const n of track) {
@@ -62,6 +74,14 @@
           notes.push({ midi: n.pitch, ms, dur: n.duration * wholeMs, hand: hands[i] || (i === 0 ? "right" : "left"), vel: n.volume || 80, char: n.startChar });
         }
       });
+      // Fingering (!1! to !5!): one per note, lowest note first in a chord.
+      const byChar = new Map();
+      for (const n of notes) { if (!byChar.has(n.char)) byChar.set(n.char, []); byChar.get(n.char).push(n); }
+      for (const [char, list] of byChar) {
+        const f = fingers.get(char);
+        if (!f || f.length !== list.length) continue;
+        list.sort((x, y) => x.midi - y.midi).forEach((n, k) => { n.finger = f[k]; });
+      }
       const bpm = 60000 / (wholeMs / 4);
       const song = M().song({ notes, title: opts.title || (vo.metaText && vo.metaText.title) || "", tempo: [{ ms: 0, bpm }], beatsPerBar: meter.num || 4, beatUnit: meter.den || 4 });
       // Each step's drawing: the timing event that starts with it.

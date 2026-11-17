@@ -129,7 +129,19 @@
           }
         }
       }
-      if (effects) effects.draw(c, { w, h, kbTop, keyAt, colors, t });
+      if (state.trail && state.trail.length) {
+        const now = state.now, r = Math.max(2, Math.min(6, whiteW * 0.18));
+        c.fillStyle = colors.right;
+        for (const n of state.trail) {
+          const k = keyAt.get(n.midi); if (!k) continue;
+          const yTop = kbTop - (now - n.start) * pxPerMs, yBot = kbTop - (n.end ? (now - n.end) * pxPerMs : 0);
+          if (yBot < 0) continue;
+          c.globalAlpha = Math.max(0.25, Math.min(1, yBot / kbTop + 0.3));
+          roundRect(c, k.x + 1, Math.max(-4, yTop), Math.max(2, k.w - 2), Math.max(2, yBot - Math.max(-4, yTop)), r); c.fill();
+        }
+        c.globalAlpha = 1;
+      }
+      if (effects) effects.draw(c, { w, h, kbTop, keyAt, colors, t, now: state.now, held: state.held, keyBox: (m) => keyAt.get(m) });
       drawKeys(state);
     }
 

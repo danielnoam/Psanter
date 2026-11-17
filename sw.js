@@ -21,7 +21,12 @@ const ASSETS = [
   "./src/midi.js",
   "./src/midifile.js",
   "./src/music.js",
+  "./src/pdfview.js",
   "./src/practice.js",
+  "./src/progress.js",
+  "./src/hotkeys.js",
+  "./src/recorder.js",
+  "./src/theme.js",
   "./src/roll.js",
   "./src/score.js",
   "./src/styles.css",
@@ -36,6 +41,8 @@ const ASSETS = [
   "./src/vendor/abcjs.min.js",
   "./src/vendor/markdown-it.min.js",
   "./src/vendor/osmd.min.js",
+  "./src/vendor/pdfjs/pdf.min.mjs",
+  "./src/vendor/pdfjs/pdf.worker.min.mjs",
   "./lessons/index.json",
   "./lessons/getting-started/01-how-lessons-work.md",
   "./lessons/getting-started/02-c-position.md",
@@ -44,6 +51,7 @@ const ASSETS = [
   "./lessons/getting-started/05-minuet-in-g.md",
   "./lessons/getting-started/pieces/minuet-in-g.musicxml",
   "./lessons/getting-started/pieces/ode-to-joy.mid",
+  "./lessons/getting-started/book/keyboard-book.pdf",
 ];
 
 self.addEventListener("install", (e) => {

@@ -11,7 +11,10 @@
       onLoop: (from, to) => { engine.setLoop({ on: true, from, to }); handle(engine.drain()); changed(); },
     });
     let score = P.score.none(scoreEl, "");
-    let target = null, song = null, raf = 0, dirty = true;
+    let target = null, song = null, base = null, semis = 0, raf = 0, dirty = true;
+    // Free play (no piece): what you play rises from the keys.
+    const trail = [];
+    const TRAIL_MS = 8000;
     const held = new Map(); // midi → "me" | "wrong" | "good" | "auto-left" | "auto-right"
     const mine = new Set(); // keys you're holding
     let lastResult = null;
@@ -23,7 +26,7 @@
         target, song, playing: engine.playing, waiting: engine.waiting, counting: engine.counting, t: engine.time,
         speed: engine.speed, mode: engine.mode, hands: engine.hands, loop: engine.loop, metronome: engine.metronome,
         countIn: engine.countIn, next: engine.next, expected: song ? engine.required(engine.next) : [], lastResult,
-        stats: engine.stats(), bar: song && engine.step >= 0 ? song.steps[engine.step].measure : 0,
+        stats: engine.stats(), bar: song && engine.step >= 0 ? song.steps[engine.step].measure : 0, transpose: semis,
       };
     }
 
@@ -37,12 +40,15 @@
       else if (t.kind === "musicxml" || t.kind === "mxl") score = P.score.musicxml(scoreEl, onClick);
       else score = P.score.none(scoreEl, t.message || "");
       let s;
-      if (t.kind === "midi") { await score.load(); s = P.midifile.parse(t.data, t.title); }
+      if (t.kind === "free") { await score.load(); s = null; }
+      else if (t.kind === "midi") { await score.load(); s = P.midifile.parse(t.data, t.title); }
       else s = await score.load(t.data, { title: t.title });
-      if (!s || !s.notes.length) throw new Error("no notes to play in this piece");
-      target = t; song = s;
-      if (t.opts && t.opts.transpose) song = P.music.transpose(song, t.opts.transpose);
+      if (t.kind !== "free" && (!s || !s.notes.length)) throw new Error("no notes to play in this piece");
+      target = t; base = s; semis = (t.opts && +t.opts.transpose) || 0;
+      song = s && semis ? P.music.transpose(s, semis) : s;
+      trail.length = 0;
       engine.load(song);
+      if (!song) { roll.setSong(null); timeline.setSong(null); lastResult = null; changed(); return null; }
       roll.setSong(song); timeline.setSong(song);
       applyOptions(t.opts || {});
       lastResult = null;
@@ -71,6 +77,10 @@
 
     // Your notes, from the piano, the computer's keyboard or the mouse.
     function noteIn(m, on, vel, now, source) {
+      if (!song) {
+        if (on) trail.push({ midi: m, start: now, end: 0 });
+        else for (let i = trail.length - 1; i >= 0; i--) if (trail[i].midi === m && !trail[i].end) { trail[i].end = now; break; }
+      }
       if (on) {
         mine.add(m);
         held.set(m, "me");
@@ -109,7 +119,12 @@
           case "wrong": held.set(e.midi, "wrong"); break;
           case "click": synth.click(e.accent); break;
           case "loop":
-            lastResult = { kind: "pass", ...e.stats, pass: e.pass, clean: e.clean };
+            lastResult = { kind: "pass", ...e.stats, pass: e.pass, clean: e.clean, speed: engine.speed };
+            // Auto speed-up: each clean pass goes 5% faster, up to the goal.
+            if (e.clean && settings.get("autoSpeed")) {
+              const goal = (settings.get("autoSpeedGoal") || 100) / 100;
+              if (engine.speed < goal - 0.001) { engine.setSpeed(Math.min(goal, Math.round((engine.speed + 0.05) * 100) / 100)); lastResult.speedUp = engine.speed; }
+            }
             score.clearMarks(); engine.results.clear();
             ui = true; break;
           case "end": lastResult = { kind: "end", ...e.stats }; ui = true; break;
@@ -124,18 +139,25 @@
     function frame(now) {
       raf = 0;
       if (engine.playing) handle(engine.update(now));
-      if (dirty || engine.playing) draw();
+      const rising = !song && trail.length && pruneTrail(now);
+      if (dirty || engine.playing || rising) draw(now);
       dirty = false;
-      if (engine.playing) kick();
+      if (engine.playing || rising) kick();
     }
     function kick() { if (!raf) raf = requestAnimationFrame(frame); }
 
-    function draw() {
+    function pruneTrail(now) {
+      while (trail.length && trail[0].end && now - trail[0].end > TRAIL_MS) trail.shift();
+      return trail.length > 0;
+    }
+
+    function draw(now) {
       const t = engine.time;
       const next = engine.next;
       const nearNext = song && next >= 0 && (engine.waiting || song.steps[next].ms - t < 1200);
       const drawState = { t, hands: engine.hands, held, results: engine.results, next,
-        expected: nearNext ? new Set(engine.required(next)) : null, lookahead: (settings.get("lookahead") || 3) * 1000 };
+        expected: nearNext ? new Set(engine.required(next)) : null, lookahead: (settings.get("lookahead") || 3) * 1000,
+        trail: song ? null : trail, now: now || performance.now() };
       roll.draw(drawState);
       timeline.draw({ t, loop: engine.loop, results: engine.results });
     }
@@ -169,6 +191,32 @@
         engine.seek(song.bars[b]); handle(engine.drain()); changed();
       },
       seek(ms) { engine.seek(ms); handle(engine.drain()); changed(); },
+      // The key you hear and play in; the score keeps the written key.
+      transpose(n) {
+        if (!base) return;
+        semis = Math.max(-12, Math.min(12, Math.round(n)));
+        const keep = { t: engine.time, loop: engine.loop, hands: engine.hands, speed: engine.speed, mode: engine.mode, metronome: engine.metronome, countIn: engine.countIn };
+        engine.pause(); stopSound();
+        song = semis ? P.music.transpose(base, semis) : base;
+        engine.load(song);
+        engine.setHands(keep.hands); engine.setMode(keep.mode); engine.setSpeed(keep.speed);
+        engine.setMetronome(keep.metronome); engine.setCountIn(keep.countIn);
+        if (keep.loop.on) engine.setLoop(keep.loop);
+        engine.seek(keep.t);
+        roll.setSong(song); timeline.setSong(song);
+        score.clearMarks(); lastResult = null;
+        handle(engine.drain()); changed();
+      },
+      // Loops one bar (by its measure number in the score).
+      loopMeasure(m) {
+        if (!song) return;
+        const first = song.steps.find((s) => s.measure === m);
+        if (!first) return;
+        const b = barIndex(first.ms);
+        engine.setLoop({ on: true, from: song.bars[b], to: song.bars[b + 1] != null ? Math.min(song.end, song.bars[b + 1]) : song.end });
+        engine.seek(song.bars[b]);
+        handle(engine.drain()); changed();
+      },
     };
     function barIndex(ms) { let b = 0; for (let i = 0; i < song.bars.length; i++) if (song.bars[i] <= ms + 0.5) b = i; return b; }
 

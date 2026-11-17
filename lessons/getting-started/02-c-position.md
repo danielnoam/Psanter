@@ -1,5 +1,6 @@
 ---
 title: C position
+book: book/keyboard-book.pdf#page=2
 ---
 
 # C position
