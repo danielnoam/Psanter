@@ -17,7 +17,8 @@
   const DEFAULTS = { theme: "system", mode: "wait", metronome: false, countIn: false, echo: false, typing: true,
     lookahead: 3, range: "song", volume: 0.7, autoVolume: 0.8, room: 0.16, output: "", layout: null, last: null,
     noteNames: "off", fingers: true, autoSpeed: false, autoSpeedGoal: 100, colors: { light: {}, dark: {} },
-    keys: {}, pianoKeys: {}, bookPages: {} };
+    keys: {}, pianoKeys: {}, bookPages: {}, effects: null, lightChannel: -1, goal: 15,
+    drill: { hand: "right", range: "five", key: "C", rhythm: "quarters", bars: 4, tempo: 70, next: true } };
   const settings = (() => {
     let data = { ...DEFAULTS };
     try { data = { ...data, ...JSON.parse(localStorage.getItem("piano.settings") || "{}") }; } catch (e) { /* first run or blocked storage */ }
@@ -77,6 +78,11 @@
     if (action) { if (on) runAction(action); return; }
     recorder.note(m, on, vel, now);
     lastNoteAt = now;
+    if (editor && editor.wantsNotes && editorShown()) {
+      editor.note(m, on);
+      if (source !== "midi" || settings.get("echo")) { if (on) synth.noteOn(m, vel); else synth.noteOff(m); }
+      return;
+    }
     if (practice) practice.noteIn(m, on, vel, now, source);
   }
   function pedal(down) { synth.setPedal(down); recorder.setPedal(down, performance.now()); }
@@ -114,6 +120,10 @@
     $("library").hidden = false;
     $("back").hidden = true;
     layoutBtn.hidden = true;
+    editBtn.hidden = true;
+    if (editorShown()) toggleEditor(false);
+    midi.light([], settings.get("lightChannel"));
+    if (video) toggleVideo();
     if (editingLayout) { editingLayout = false; layoutBtn.setAttribute("aria-pressed", "false"); }
     if (recorder.recording) toggleRecord();
     $("title").textContent = "Piano";
@@ -152,6 +162,7 @@
     }
 
     inner.appendChild(daysCard());
+    inner.appendChild(drillCard());
     for (const c of courses) inner.appendChild(courseCard(c));
     if (!library.canPick()) inner.appendChild(el("p", "dim", t("This browser can't keep folders between visits; use the desktop app for that.")));
     root.replaceChildren(inner);
@@ -210,8 +221,8 @@
   }
 
   // ---- the lesson screen ----
-  const PANELS = ["lesson", "score", "roll", "stats", "book"];
-  const PANEL_NAMES = { lesson: "Lesson", score: "Score", roll: "Keys", stats: "Progress", book: "Book" };
+  const PANELS = ["lesson", "score", "roll", "stats", "book", "editor"];
+  const PANEL_NAMES = { lesson: "Lesson", score: "Score", roll: "Keys", stats: "Progress", book: "Book", editor: "Editor" };
   const DEFAULT_LAYOUT = { dir: "row", sizes: [0.36, 0.64], children: [{ dir: "col", sizes: [0.68, 0.32], children: ["lesson", "stats"] }, { dir: "col", sizes: [0.52, 0.48], children: ["score", "roll"] }] };
   const PRESETS = {
     lesson: { name: "Lesson", tree: DEFAULT_LAYOUT },
@@ -220,7 +231,9 @@
     keys: { name: "Keys only", tree: { dir: "row", sizes: [0.78, 0.22], children: ["roll", "stats"] } },
   };
   let editingLayout = false;
-  let pdf = null;
+  let pdf = null, editor = null, fx = null;
+  const editBtn = button("", "icon-btn", null);
+  editBtn.hidden = true;
   const mounts = {};
   let lessonState = null; // { course, path, meta, blocks, pieces, active, modified }
   let watchTimer = 0;
@@ -237,12 +250,23 @@
     const timelineCanvas = document.createElement("canvas");
     mounts.stats = el("div", "stats");
     mounts.book = el("div", "book");
+    mounts.editor = el("div", "editor");
+    editor = P.editor.create(mounts.editor, {
+      t, icon, button,
+      canSave: () => !!(lessonState && lessonState.course && library.writable(lessonState.course)),
+      onInput: (text) => previewLesson(text),
+      onSave: (text) => saveLesson(text),
+      onClose: () => toggleEditor(false),
+    });
     pdf = P.pdfview.create(mounts.book, { t, icon, onPage: (id, page) => { if (!id) return; const b = { ...settings.get("bookPages") }; b[id] = page; settings.set("bookPages", b); } });
     practice = P.practice.create({
       scoreEl: mounts.score, rollCanvas, timelineCanvas, midi, synth, settings,
       onChange: (s) => { renderTransport(s); statsSoon(); },
       onEvent,
+      onExpected: (list) => midi.light(list, settings.get("lightChannel")),
     });
+    fx = P.effects.create();
+    applyEffects();
     practice.roll.setRange(settings.get("range"));
     applyLabels();
     buildTransport(timelineCanvas);
@@ -318,6 +342,9 @@
     $("lesson-screen").hidden = false;
     $("back").hidden = false;
     layoutBtn.hidden = false;
+    editBtn.hidden = true;
+    // The editor only stays for a lesson; pieces, drills and free play have no text.
+    if (!(lessonState && lessonState.path) && P.layout.panels(currentLayout()).includes("editor")) settings.set("layout", P.layout.remove(currentLayout(), "editor"));
     $("title").textContent = title;
     document.title = title + " · Piano";
     renderLayout();
@@ -345,6 +372,8 @@
     showLessonScreen(title);
     renderLessonText(body);
     if (meta.book) openBook(meta.book, false);
+    editBtn.hidden = false;
+    if (editorShown()) loadEditor();
     const first = lessonState.blocks.length ? { block: 0 } : lessonState.pieces.length ? { piece: 0 } : null;
     if (first) await activate(first);
     else { await practice.load({ kind: "none", message: t("This lesson has no music to practise.") }).catch(() => {}); }
@@ -479,12 +508,13 @@
     if (!lessonState || !library.writable(lessonState.course)) return;
     watchTimer = setInterval(async () => {
       const s = lessonState; if (!s) return;
-      if (s.path) {
+      if (s.path && !(editorShown() && editor.dirty)) {
         const m = await library.modified(s.course, s.path);
         if (m && m !== s.modified) {
           const r = await library.read(s.course, s.path);
           const before = s.active && s.active.block != null ? s.blocks[s.active.block] && s.blocks[s.active.block].text : null;
           s.modified = r.modified; s.text = r.data;
+          if (editorShown() && !editor.dirty && editor.text !== r.data) editor.open(r.data, s.course + "|" + s.path);
           const fm = P.lesson.frontMatter(r.data);
           s.meta = fm.meta;
           const keep = mounts.lesson.scrollTop;
@@ -542,12 +572,14 @@
     tr.record = iconButton("circle", t("Record what you play"), () => toggleRecord());
     tr.record.classList.add("rec-btn");
     tr.recTime = el("span", "rec-time");
+    tr.video = iconButton("video", t("Record a video of the falling notes"), () => toggleVideo());
+    tr.video.classList.add("rec-btn");
     tr.right = seg([["me", t("You")], ["auto", t("App")], ["off", t("Off")]], (v) => practice.act.hand("right", v));
     tr.left = seg([["me", t("You")], ["auto", t("App")], ["off", t("Off")]], (v) => practice.act.hand("left", v));
     tr.metronome = iconButton("timer", t("Metronome"), () => practice.act.metronome(!practice.engine.metronome));
     tr.countIn = button(t("Count-in"), "btn", () => practice.act.countIn(!practice.engine.countIn));
     bar.append(g1, tl, tr.mode, speed, group(null, tr.loop, tr.autoSpeed), group(t("Right"), tr.right), group(t("Left"), tr.left),
-      group(t("Key"), tr.keyDown, tr.keyValue, tr.keyUp), group(null, tr.metronome, tr.countIn), group(null, tr.record, tr.recTime));
+      group(t("Key"), tr.keyDown, tr.keyValue, tr.keyUp), group(null, tr.metronome, tr.countIn), group(null, tr.record, tr.recTime, tr.video));
   }
 
   function renderTransport(s) {
@@ -671,6 +703,12 @@
     piano.appendChild(field(t("Where the app's own notes play"), out));
     piano.appendChild(check(t("Also play my notes in the app (for a keyboard with no speakers)"), "echo"));
     piano.appendChild(check(t("Use the computer's keyboard as a piano (A is middle C)"), "typing"));
+    const lightSel = document.createElement("select");
+    lightSel.appendChild(new Option(t("Off"), "-1"));
+    for (let c = 0; c < 16; c++) lightSel.appendChild(new Option(t("Channel {n}", { n: c + 1 }), String(c)));
+    lightSel.value = String(settings.get("lightChannel"));
+    lightSel.addEventListener("change", () => { midi.light([], settings.get("lightChannel")); settings.set("lightChannel", +lightSel.value); });
+    piano.appendChild(field(t("Light the next notes on a keyboard with lit keys (its lighting channel)"), lightSel));
     body.appendChild(piano);
 
     const prac = section(t("Practice"));
@@ -689,6 +727,7 @@
     const fing = check(t("Finger numbers on the falling notes, where the music has them"), "fingers");
     fing.querySelector("input").addEventListener("change", applyLabels);
     prac.appendChild(fing);
+    prac.appendChild(field(t("Daily goal"), range(0, 60, 5, settings.get("goal"), (v) => { settings.set("goal", v); statsSoon(); }, (v) => (v ? t("{n} min", { n: v }) : t("none")))));
     prac.appendChild(field(t("Auto speed-up stops at"), range(50, 150, 5, settings.get("autoSpeedGoal"), (v) => settings.set("autoSpeedGoal", v), (v) => v + "%")));
     body.appendChild(prac);
 
@@ -704,6 +743,11 @@
     theme.value = settings.get("theme");
     theme.addEventListener("change", () => { settings.set("theme", theme.value); applyTheme(); });
     looks.appendChild(field(t("Theme"), theme));
+    const fxSel = document.createElement("select");
+    fxSel.append(new Option(t("Off"), "off"), new Option(t("Subtle"), "subtle"), new Option(t("Full"), "full"));
+    fxSel.value = effectsLevel();
+    fxSel.addEventListener("change", () => { settings.set("effects", fxSel.value); applyEffects(); });
+    looks.appendChild(field(t("Glow and sparks on the keys"), fxSel));
     const editColours = button(t("Edit colours"), "btn", () => { dlg.close(); openThemeEditor(); });
     editColours.prepend(icon("palette"));
     const reset = button(t("Reset the panel layout"), "btn", () => { settings.set("layout", null); if (!$("lesson-screen").hidden) renderLayout(); toast(t("Layout reset")); });
@@ -764,6 +808,7 @@
   // from two lessons is one piece), an exercise by its lesson and place.
   function pieceKey() {
     const s = lessonState, tg = practice && practice.target;
+    if (tg && tg.source && tg.source.drill) return "drill|" + tg.source.drill;
     if (!s || !tg || !tg.source || !s.course) return null;
     if (tg.source.piece != null) { const pc = s.pieces[tg.source.piece]; return pc && !pc.data ? s.course + "|" + pc.path : null; }
     return s.course + "|" + s.path + "#" + tg.source.block;
@@ -771,6 +816,7 @@
   function pieceTitle() {
     const tg = practice && practice.target;
     if (!tg) return "";
+    if (tg.source && tg.source.drill) return t("Sight-reading") + " · " + tg.source.label;
     if (tg.source && tg.source.block != null) return (tg.title || t("Exercise {n}", { n: tg.source.block + 1 })) + " · " + ($("title").textContent || "");
     return tg.title || "";
   }
@@ -787,6 +833,7 @@
     const key = pieceKey();
     if (key) { progress.addRun(key, pieceTitle(), run, today()); progress.flush(); }
     statsSoon();
+    if (e.type === "end" && lessonState && lessonState.drill && settings.get("drill").next) setTimeout(() => { if (lessonState && lessonState.drill && !practice.engine.playing) newDrill(); }, 1800);
   }
 
   // A second of practice counts while the music moves or you've played in
@@ -879,11 +926,22 @@
       bars.appendChild(b);
     }
     sec.appendChild(bars);
-    const streak = progress.streak(d);
-    sec.appendChild(el("p", "dim", t("Today {time}", { time: minutes(progress.today(d)) }) + (streak > 1 ? " · " + t("{n} days in a row", { n: streak }) : "")));
+    const goal = settings.get("goal") || 0;
+    const streak = progress.streak(d, Math.max(60, goal * 60));
+    const done = progress.today(d);
+    const line = el("p", "dim streak");
+    if (streak > 1) line.appendChild(icon("flame"));
+    line.append(t("Today {time}", { time: minutes(done) }) + (goal ? " " + t("of {n} min", { n: goal }) + (done >= goal * 60 ? " · " + t("goal met") : "") : "") + (streak > 1 ? " · " + t("{n} days in a row", { n: streak }) : ""));
+    sec.appendChild(line);
+    if (goal) {
+      const meter = document.createElement("progress");
+      meter.className = "goal"; meter.max = goal * 60; meter.value = Math.min(goal * 60, done);
+      meter.setAttribute("aria-label", t("Today's goal"));
+      sec.appendChild(meter);
+    }
     return sec;
   }
-  function daysCard() { const c = el("div", "continue stats"); c.appendChild(daysSection()); return c; }
+  function daysCard() { const c = el("div", "days-card"); c.appendChild(daysSection()); return c; }
 
   // ---- the book ----
   async function openBook(ref, reveal) {
@@ -962,6 +1020,147 @@
     const url = URL.createObjectURL(new Blob([bytes], { type }));
     const a = document.createElement("a"); a.href = url; a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  // ---- the lesson editor ----
+  function editorShown() { return !!editor && P.layout.panels(currentLayout()).includes("editor") && !$("lesson-screen").hidden; }
+  function toggleEditor(on) {
+    const want = on == null ? !editorShown() : on;
+    const tree = currentLayout();
+    if (want) {
+      if (!lessonState || !lessonState.path) { toast(t("Open a lesson to edit it.")); return; }
+      if (!P.layout.panels(tree).includes("editor")) setLayout({ dir: "row", sizes: [0.3, 0.7], children: ["editor", tree] });
+      loadEditor();
+      editor.focus();
+    } else if (P.layout.panels(tree).includes("editor")) {
+      if (editor.dirty) toast(t("Your changes are kept as a draft until you save them."), 4000);
+      setLayout(P.layout.remove(tree, "editor"));
+    }
+    editBtn.setAttribute("aria-pressed", String(want));
+  }
+  function loadEditor() {
+    if (!lessonState || !lessonState.path) return;
+    const restored = editor.open(lessonState.text || "", lessonState.course + "|" + lessonState.path);
+    if (restored) { toast(t("Unsaved changes from before, restored."), 4000); previewLesson(editor.text); }
+    editBtn.setAttribute("aria-pressed", "true");
+  }
+  // The lesson panel shows the text as you type it.
+  function previewLesson(text) {
+    if (!lessonState) return;
+    const s = lessonState;
+    const before = s.active && s.active.block != null && s.blocks[s.active.block] ? s.blocks[s.active.block].text : null;
+    const fm = P.lesson.frontMatter(text);
+    s.meta = fm.meta;
+    const keep = mounts.lesson.scrollTop;
+    renderLessonText(fm.body);
+    mounts.lesson.scrollTop = keep;
+    if (s.active && s.active.block != null && s.blocks[s.active.block] && s.blocks[s.active.block].text !== before && !practice.engine.playing) activate(s.active);
+  }
+  async function saveLesson(text) {
+    const s = lessonState;
+    if (!s || !s.path) return;
+    if (s.course && library.writable(s.course)) {
+      await library.write(s.course, s.path, text);
+      s.text = text;
+      s.modified = await library.modified(s.course, s.path);
+      toast(t("Saved"));
+    } else {
+      await downloadBytes(new TextEncoder().encode(text), s.path.split("/").pop(), "text/markdown");
+      s.text = text;
+    }
+  }
+
+  // ---- effects, video, lit keys ----
+  function effectsLevel() {
+    const v = settings.get("effects");
+    if (v) return v;
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "off" : "subtle";
+  }
+  function applyEffects() { fx.setLevel(effectsLevel()); practice.setEffects(effectsLevel() === "off" ? null : fx); }
+
+  let video = null;
+  function toggleVideo() {
+    if (video) { video.stop(); return; }
+    const canvas = mounts.roll.querySelector("canvas");
+    if (!canvas.captureStream || !window.MediaRecorder) { toast(t("Video recording isn't available here.")); return; }
+    synth.unlock();
+    const tracks = [...canvas.captureStream(60).getVideoTracks()];
+    const audio = synth.stream();
+    if (audio) tracks.push(...audio.getAudioTracks());
+    const type = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((x) => MediaRecorder.isTypeSupported(x)) || "";
+    const rec = new MediaRecorder(new MediaStream(tracks), type ? { mimeType: type, videoBitsPerSecond: 6e6 } : undefined);
+    const chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = async () => {
+      video = null;
+      tr.video.setAttribute("aria-pressed", "false");
+      for (const tk of tracks) if (tk.kind === "video") tk.stop();
+      if (!chunks.length) return;
+      toast(t("Saving the video…"), 1500);
+      const bytes = new Uint8Array(await new Blob(chunks, { type: "video/webm" }).arrayBuffer());
+      const d = new Date();
+      try { await downloadBytes(bytes, "piano " + today() + " " + String(d.getHours()).padStart(2, "0") + "." + String(d.getMinutes()).padStart(2, "0") + ".webm", "video/webm"); }
+      catch (e) { if (!e || e.name !== "AbortError") toast(t("Couldn't save the video: {why}", { why: e.message || String(e) })); }
+    };
+    rec.start(1000);
+    video = rec;
+    tr.video.setAttribute("aria-pressed", "true");
+    toast(midi.hasOutput ? t("Recording the falling notes. Notes sent to your piano aren't in the sound.") : t("Recording the falling notes and the app's sound. Press again to stop."), 4000);
+  }
+
+  // ---- sight-reading drills ----
+  function drillCard() {
+    const c = el("section", "course");
+    const head = el("div", "course-head");
+    head.append(el("h3", null, t("Sight-reading")), button(t("Start"), "btn primary", () => openDrills()));
+    c.append(head, el("p", "course-note", t("Short new music every time, made for the hands, keys and notes you pick.")));
+    return c;
+  }
+  async function openDrills() {
+    lessonState = { course: null, path: null, meta: {}, blocks: [], pieces: [], active: null, drill: true };
+    showLessonScreen(t("Sight-reading"));
+    renderDrillForm();
+    await newDrill();
+  }
+  function renderDrillForm() {
+    const d = { ...settings.get("drill") };
+    const setD = (k, v) => { d[k] = v; settings.set("drill", { ...d }); };
+    const form = el("div", "drill-form");
+    const pickSeg = (k, options) => { const box = seg(options, (v) => { setD(k, v); setSeg(box, v); newDrill(); }); setSeg(box, String(d[k])); return box; };
+    const keySel = document.createElement("select");
+    keySel.setAttribute("aria-label", t("Key"));
+    for (const k of P.abcwrite.KEYS) keySel.appendChild(new Option(k.replace("b", "♭") + " " + t("major"), k));
+    keySel.value = d.key;
+    keySel.addEventListener("change", () => { setD("key", keySel.value); newDrill(); });
+    const next = el("label", "check");
+    const nextBox = document.createElement("input"); nextBox.type = "checkbox"; nextBox.checked = !!d.next;
+    nextBox.addEventListener("change", () => setD("next", nextBox.checked));
+    next.append(nextBox, el("span", null, t("A new one when you finish")));
+    form.append(
+      el("h1", null, t("Sight-reading")),
+      el("p", "dim", t("Read it once, then play it without stopping to fix notes. Wait mode lets you take your time; flow mode keeps the beat.")),
+      field(t("Hands"), pickSeg("hand", [["right", t("Right")], ["left", t("Left")], ["both", t("Both")]])),
+      field(t("Notes"), pickSeg("range", [["five", t("Five")], ["octave", t("An octave")], ["two", t("Two octaves")]])),
+      field(t("Key"), keySel),
+      field(t("Rhythm"), pickSeg("rhythm", [["quarters", t("Steady")], ["mixed", t("Mixed")]])),
+      field(t("Bars"), pickSeg("bars", [["4", "4"], ["8", "8"]])),
+      field(t("Tempo"), range(40, 140, 5, d.tempo, (v) => setD("tempo", v), (v) => t("{n} bpm", { n: v }))),
+      next,
+    );
+    const go = button(t("New drill"), "btn primary", () => newDrill());
+    go.prepend(icon("refresh"));
+    form.appendChild(go);
+    mounts.lesson.replaceChildren(form);
+  }
+  async function newDrill() {
+    const d = settings.get("drill");
+    const text = P.abcwrite.drill({ ...d, bars: +d.bars || 4, seed: (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0 });
+    const label = d.key.replace("b", "♭") + ", " + t(d.range === "five" ? "five notes" : d.range === "octave" ? "an octave" : "two octaves") + ", " + t(d.hand === "both" ? "both hands" : d.hand === "left" ? "left hand" : "right hand");
+    passes = [];
+    try {
+      await practice.load({ kind: "abc", data: text, title: t("Sight-reading"), opts: { hands: d.hand === "both" ? "both" : d.hand, tempo: d.tempo }, source: { drill: [d.key, d.range, d.hand, d.rhythm].join("|"), label } });
+      renderStats();
+    } catch (e) { toast(t("Couldn't make a drill: {why}", { why: e.message || String(e) })); }
   }
 
   // ---- shortcuts, in Settings ----
@@ -1068,6 +1267,11 @@
     layoutBtn.setAttribute("aria-pressed", "false");
     layoutBtn.addEventListener("click", () => toggleLayoutEditor());
     $("settings-btn").before(layoutBtn);
+    editBtn.appendChild(icon("pencil"));
+    editBtn.title = t("Edit this lesson"); editBtn.setAttribute("aria-label", editBtn.title);
+    editBtn.setAttribute("aria-pressed", "false");
+    editBtn.addEventListener("click", () => toggleEditor());
+    layoutBtn.before(editBtn);
     $("settings-btn").appendChild(icon("sliders"));
     $("settings-btn").title = t("Settings"); $("settings-btn").setAttribute("aria-label", t("Settings"));
     const openSettings = () => { renderSettings(); $("settings").showModal(); };
@@ -1091,6 +1295,6 @@
 
   const motion = K.motion.create();
   window.PianoApp = { version: APP_VERSION, i18n, settings, get practice() { return practice; }, library, openLesson, openPiece, openFree, showLibrary, motion, toast,
-    progress, hotkeys: hot, recorder, routeNote, runAction, toggleLayoutEditor, openThemeEditor, openBook, get pdf() { return pdf; } };
+    progress, hotkeys: hot, recorder, get editor() { return editor; }, toggleEditor, openDrills, newDrill, toggleVideo, routeNote, runAction, toggleLayoutEditor, openThemeEditor, openBook, get pdf() { return pdf; } };
   start().catch((e) => { toast(String(e && e.message || e)); K.errlog.note("start", String(e && e.stack || e)); });
 })();

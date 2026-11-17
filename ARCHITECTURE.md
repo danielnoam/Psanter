@@ -33,7 +33,7 @@ src/music.js         note names, the song model (steps, beats, bars), transpose
 src/midifile.js      reads and writes Standard MIDI Files
 src/lesson.js        front matter, block options, links: everything about lesson text
 src/engine.js        the practice engine: wait/flow, hands, loops, metronome, results
-src/midi.js          Web MIDI in and out, and the computer keyboard as a piano
+src/midi.js          Web MIDI in and out, lit keys, and the computer keyboard as a piano
 src/synth.js         the built-in piano sound (Web Audio): pedal, room
 src/score.js         score adapters: abcjs, OSMD, none; each returns a song
 src/roll.js          falling notes and the keyboard, one canvas
@@ -46,10 +46,13 @@ src/hotkeys.js       rebindable shortcuts, computer keys and piano keys (pure)
 src/recorder.js      what you play, as notes for midifile.write
 src/theme.js         the colour editor's tokens, its JSON and the readability check
 src/pdfview.js       the book panel: pdf.js, loaded the first time a book opens
+src/abcwrite.js      writing ABC: a note in a key (bar accidentals carried), drills from a seed (pure)
+src/editor.js        the lesson editor: text, drafts, notes from the piano into the music block
+src/effects.js       glow over held keys and sparks where notes land (roll.setEffects)
 src/vendor/          abcjs, osmd, markdown-it, pdfjs, each with its licence
 src/keel/            from keel: errlog, platform, i18n, releases, motion (+ unused qr, github, drive)
 lessons/             the built-in course (with an example PDF book); index.json lists the courses
-test/                engine, lesson, layout, progress, hotkeys, recorder, theme and keel's checks; run-all.js runs them
+test/                engine, lesson, layout, progress, hotkeys, recorder, theme, abcwrite and keel's checks; run-all.js runs them
 server.js            the local server: this computer only (from keel)
 tools/build-www.js   copies sw.js's ASSETS into www-desktop/ for Tauri
 tools/               release.js, keel-sync.js, keel-checks.js (from keel)
@@ -84,6 +87,10 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 - **pdf.js is an ES module**, loaded with `import()` the first time a book
   opens, and runs in a module worker (`worker-src 'self'`). Font eval is
   off (`isEvalSupported: false`).
+- **Lesson drafts** are kept in localStorage (`piano.draft:<course>|<path>`)
+  until saved, so a crash or closing the editor doesn't lose them.
+- **Lit keys** are note-ons at velocity 1 on the channel picked in
+  Settings. A keyboard that sounds that channel plays them very softly.
 - **A pasted colour theme** can only set the known colour tokens to plain
   `#rrggbb` values (`theme.clean`), so it can't restyle anything else.
 - **Vendored libraries** (~2.5 MB) instead of a bundle, so there's still
@@ -94,6 +101,9 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 - The app's panels: `PANELS` in app.js names them; a saved layout with an
   unknown panel drops it (`layout.normalize`), so renaming one resets it
   for everyone.
+- The editor writes notes in the block's key and carries accidentals
+  from the start of the bar to the cursor, but doesn't check the bar's
+  length: a bar can overflow.
 - A run where the app played every hand isn't recorded as progress, or
   every listen would be a "100% right" best tempo.
 

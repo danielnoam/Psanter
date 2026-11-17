@@ -2,7 +2,7 @@
 // score, the falling notes and the timeline, with your notes coming in and
 // the app's notes going out. app.js builds the screen around it.
 (function () {
-  function create({ scoreEl, rollCanvas, timelineCanvas, midi, synth, settings, onChange, onEvent }) {
+  function create({ scoreEl, rollCanvas, timelineCanvas, midi, synth, settings, onChange, onEvent, onExpected }) {
     const P = window.Piano;
     const engine = P.engine.create();
     const roll = P.roll.create(rollCanvas);
@@ -14,6 +14,7 @@
     let target = null, song = null, base = null, semis = 0, raf = 0, dirty = true;
     // Free play (no piece): what you play rises from the keys.
     const trail = [];
+    let fx = null, lastExpected = "";
     const TRAIL_MS = 8000;
     const held = new Map(); // midi → "me" | "wrong" | "good" | "auto-left" | "auto-right"
     const mine = new Set(); // keys you're holding
@@ -81,6 +82,7 @@
         if (on) trail.push({ midi: m, start: now, end: 0 });
         else for (let i = trail.length - 1; i >= 0; i--) if (trail[i].midi === m && !trail[i].end) { trail[i].end = now; break; }
       }
+      if (on && fx) fx.burst(m, "me", now);
       if (on) {
         mine.add(m);
         held.set(m, "me");
@@ -113,10 +115,11 @@
           case "step": score.show(e.index); break;
           case "done":
             score.mark(e.step, e.result);
+            if (fx && e.result === "hit") for (const n of song.steps[e.step].notes) if (engine.hands[n.hand] === "me") fx.burst(n.midi, "good", performance.now());
             for (const m of mine) if (song.steps[e.step].notes.some((n) => n.midi === m)) held.set(m, "good");
             break;
           case "miss": score.mark(e.step, "miss"); break;
-          case "wrong": held.set(e.midi, "wrong"); break;
+          case "wrong": held.set(e.midi, "wrong"); if (fx) fx.burst(e.midi, "wrong", performance.now()); break;
           case "click": synth.click(e.accent); break;
           case "loop":
             lastResult = { kind: "pass", ...e.stats, pass: e.pass, clean: e.clean, speed: engine.speed };
@@ -139,7 +142,7 @@
     function frame(now) {
       raf = 0;
       if (engine.playing) handle(engine.update(now));
-      const rising = !song && trail.length && pruneTrail(now);
+      const rising = (!song && trail.length && pruneTrail(now)) || (fx && fx.busy(now));
       if (dirty || engine.playing || rising) draw(now);
       dirty = false;
       if (engine.playing || rising) kick();
@@ -159,6 +162,11 @@
         expected: nearNext ? new Set(engine.required(next)) : null, lookahead: (settings.get("lookahead") || 3) * 1000,
         trail: song ? null : trail, now: now || performance.now() };
       roll.draw(drawState);
+      if (onExpected) {
+        const list = drawState.expected ? [...drawState.expected].sort((a, b) => a - b) : [];
+        const sig = list.join(",");
+        if (sig !== lastExpected) { lastExpected = sig; onExpected(list); }
+      }
       timeline.draw({ t, loop: engine.loop, results: engine.results });
     }
 
@@ -220,7 +228,9 @@
     };
     function barIndex(ms) { let b = 0; for (let i = 0; i < song.bars.length; i++) if (song.bars[i] <= ms + 0.5) b = i; return b; }
 
-    return { load, noteIn, act, resize, draw: () => { dirty = true; kick(); }, state, engine, roll, timeline,
+    function setEffects(f) { fx = f; roll.setEffects(f); dirty = true; kick(); }
+
+    return { load, noteIn, act, setEffects, resize, draw: () => { dirty = true; kick(); }, state, engine, roll, timeline,
       stopSound, readColors() { roll.readColors(); timeline.readColors(); dirty = true; kick(); },
       get song() { return song; }, get target() { return target; }, get score() { return score; }, songBpm };
   }

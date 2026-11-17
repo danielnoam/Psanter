@@ -74,7 +74,24 @@
       sounding.clear();
     }
 
-    return { start, devices, setOutput, send, allOff, get hasOutput() { return !!output; }, get status() { return status; } };
+    // Keyboards with lit keys light a key for a note sent to them on their
+    // lighting channel (which channel depends on the keyboard). Lights
+    // exactly `midis`, turning the others off.
+    const lit = new Set();
+    let litChannel = -1;
+    function light(midis, channel) {
+      const ch = channel == null || channel < 0 ? -1 : channel & 15;
+      try {
+        if (output && litChannel >= 0 && (ch !== litChannel || !midis.length)) { for (const m of lit) output.send([0x80 | litChannel, m, 0]); lit.clear(); }
+        litChannel = ch;
+        if (!output || ch < 0) { lit.clear(); return; }
+        const want = new Set(midis);
+        for (const m of [...lit]) if (!want.has(m)) { output.send([0x80 | ch, m, 0]); lit.delete(m); }
+        for (const m of want) if (!lit.has(m)) { output.send([0x90 | ch, m, 1]); lit.add(m); }
+      } catch (e) { lit.clear(); }
+    }
+
+    return { start, devices, setOutput, send, allOff, light, get hasOutput() { return !!output; }, get status() { return status; } };
   }
 
   // The typing keyboard as a piano. Returns a function that turns it off.

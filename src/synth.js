@@ -8,7 +8,7 @@
   const MAX_VOICES = 48;
 
   function create() {
-    let ctx = null, master = null, dry = null, wet = null, noise = null;
+    let ctx = null, master = null, dry = null, wet = null, noise = null, comp = null, tap = null;
     const voices = new Map();
     const waves = new Map();
     let volume = 0.7, pedal = false, roomLevel = 0.16;
@@ -21,7 +21,7 @@
         ctx = new AC({ latencyHint: "interactive" });
         master = ctx.createGain();
         master.gain.value = volume;
-        const comp = ctx.createDynamicsCompressor();
+        comp = ctx.createDynamicsCompressor();
         comp.threshold.value = -14; comp.ratio.value = 4;
         master.connect(comp); comp.connect(ctx.destination);
         dry = ctx.createGain(); dry.connect(master);
@@ -146,7 +146,14 @@
     function setVolume(x) { volume = Math.max(0, Math.min(1, x)); if (master) master.gain.value = volume; }
     function setRoom(x) { roomLevel = Math.max(0, Math.min(0.6, x)); if (wet) wet.gain.value = roomLevel; }
 
-    return { noteOn, noteOff, allOff, click, setVolume, setRoom, setPedal, unlock: ready };
+    // The app's sound as a stream, for a video of the falling notes.
+    function stream() {
+      if (!ready()) return null;
+      if (!tap) { tap = ctx.createMediaStreamDestination(); comp.connect(tap); }
+      return tap.stream;
+    }
+
+    return { noteOn, noteOff, allOff, click, setVolume, setRoom, setPedal, stream, unlock: ready };
   }
 
   window.Piano = window.Piano || {};

@@ -47,11 +47,20 @@ watches it and reloads a lesson when you save it in your editor.
 - Transpose up or down a semitone at a time (the score keeps its key).
 - Free play, and recording anything you play as a MIDI file.
 
+### Writing and reading
+- A lesson editor beside the lesson, with the lesson as its live preview.
+  Turn on **Notes from the piano** and what you play is written into the
+  music block at the cursor (chords too). Saves to your folder, or as a
+  copy for built-in lessons; unsaved text is kept as a draft.
+- Sight-reading drills: new music each time for the hands, key, range and
+  rhythm you pick, the next one coming when you finish.
+
 ### Progress
 - Each run and loop pass: right, late, missed, wrong, and how far off the
   beat. Per piece: best tempo, runs, time practised and the bars that trip
   you up, with a button to loop one.
-- Minutes per day for the last two weeks, and days in a row.
+- Minutes per day for the last two weeks, a daily goal, and days in a row
+  that met it.
 
 ### Seeing it
 - The score (abcjs for ABC, OpenSheetMusicDisplay for MusicXML) follows
@@ -61,6 +70,9 @@ watches it and reloads a lesson when you save it in your editor.
 - Note names (letters or solfège) and finger numbers on the falling notes.
 - A PDF book in its own panel, keeping your page.
 - Panels you drag, resize, hide and show, with presets.
+- Glow and sparks on the keys (subtle, full or off; off when Windows asks
+  for less motion).
+- A video (WebM) of the falling notes with the app's sound.
 - Light and dark themes, and a colour editor for both, with a readability
   check and colours you can copy and paste.
 
@@ -71,3 +83,5 @@ watches it and reloads a lesson when you save it in your editor.
 - A built-in piano sound with a sustain pedal and a little room.
 - Shortcuts you can change, on the computer's keys or on piano keys you
   never play.
+- Keyboards with lit keys: the next notes light up, on the lighting
+  channel you pick (untested: which channel depends on the keyboard).

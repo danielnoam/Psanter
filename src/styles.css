@@ -359,3 +359,22 @@ textarea.json { width: 100%; min-height: 96px; border: 1px solid var(--line-soft
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ---- lesson editor ---- */
+.editor { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.editor-bar { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; flex: none; }
+.editor-bar select { height: var(--control-h); }
+.editor-status { flex: 1; text-align: end; font-size: 13px; color: var(--text-dim); padding-inline: var(--space-2); }
+.editor-status.dirty { color: var(--text); font-weight: 600; }
+.editor-text { flex: 1; resize: none; border: 0; outline: none; padding: var(--space-3) var(--space-4); background: var(--surface); color: var(--text); font: 13px/1.55 ui-monospace, Consolas, monospace; tab-size: 2; }
+
+/* ---- drills ---- */
+.drill-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.drill-form .row { gap: var(--space-2); }
+progress.goal { width: 100%; height: 8px; accent-color: var(--accent); }
+.streak { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; }
+.streak .icon { color: var(--late); }
+.days-card { padding: var(--space-3) var(--space-4); border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line-soft); }
+.days-card h4 { margin: 0 0 var(--space-2); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 600; }
+.days-card .days { height: 72px; }
+.days-card p { margin: var(--space-2) 0; }
