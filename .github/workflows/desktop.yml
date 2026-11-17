@@ -1,0 +1,68 @@
+# The Windows app as a zip: unzip it anywhere and run Piano.exe. No
+# installer, nothing to set up (Windows 10 and 11 already have WebView2).
+#
+# Runs only by hand (Actions → Windows app → Run workflow) until Daniel asks
+# for releases: then it also runs on a merge with a new APP_VERSION and
+# attaches the zip to that version's release. The zip is this run's
+# artifact either way.
+name: Windows app
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
+  build:
+    needs: tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Icons
+        run: npx tauri icon icon.svg
+
+      # The version comes from APP_VERSION. --no-bundle: the plain .exe,
+      # with the app's files built in, which is all a zip needs.
+      - name: Build
+        shell: bash
+        run: |
+          V="$(node -p "require('./tools/build-www').appVersion()")"
+          echo "V=$V" >> "$GITHUB_ENV"
+          npx tauri build --ci --no-bundle --config "{\"version\":\"$V\"}"
+
+      - name: Zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out/Piano | Out-Null
+          Copy-Item src-tauri/target/release/piano.exe out/Piano/Piano.exe
+          Copy-Item README.md out/Piano/README.md
+          Compress-Archive -Path out/Piano -DestinationPath "out/Piano-$env:V-windows.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Piano-${{ env.V }}-windows
+          path: out/Piano-*.zip

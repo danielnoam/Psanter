@@ -1,0 +1,17 @@
+{
+  "courses": [
+    {
+      "id": "getting-started",
+      "title": "Getting started",
+      "files": [
+        "01-how-lessons-work.md",
+        "02-c-position.md",
+        "03-c-major-scale.md",
+        "04-ode-to-joy.md",
+        "05-minuet-in-g.md",
+        "pieces/minuet-in-g.musicxml",
+        "pieces/ode-to-joy.mid"
+      ]
+    }
+  ]
+}
