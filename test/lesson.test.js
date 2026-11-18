@@ -77,4 +77,31 @@ test("a file that isn't MIDI is refused with a message", () => {
   assert.throws(() => midifile.parse(new Uint8Array([1, 2, 3])), /not a MIDI file/);
 });
 
+// A format-1 file with a track per hand, named or not.
+function twoTracks(names) {
+  const track = (name, notes) => {
+    const b = [];
+    if (name) b.push(0, 0xff, 0x03, name.length, ...[...name].map((c) => c.charCodeAt(0)));
+    for (const m of notes) b.push(0, 0x90, m, 80, 0x83, 0x60, 0x80, m, 0);
+    b.push(0, 0xff, 0x2f, 0);
+    return [0x4d, 0x54, 0x72, 0x6b, 0, 0, b.length >> 8, b.length & 0xff, ...b];
+  };
+  return new Uint8Array([0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, 2, 0x01, 0xe0,
+    ...track(names[0], [72, 74]), ...track(names[1], [48, 50])]);
+}
+
+test("each MIDI track can be given a hand, split, or left out", () => {
+  const bytes = twoTracks(["", ""]);
+  const guess = midifile.parse(bytes);
+  assert.deepStrictEqual(guess.tracks.map((t) => [t.hand, t.notes, t.guessed]), [["right", 2, true], ["left", 2, true]]);
+  const swapped = midifile.parse(bytes, "", ["left", "right"]);
+  assert.deepStrictEqual(swapped.notes.filter((n) => n.midi >= 72).map((n) => n.hand), ["left", "left"]);
+  assert.strictEqual(swapped.tracks[0].guessed, false);
+  const off = midifile.parse(bytes, "", ["right", "off"]);
+  assert.deepStrictEqual(off.notes.map((n) => n.midi), [72, 74]);
+  const split = midifile.parse(bytes, "", ["split", "split"]);
+  assert.deepStrictEqual(split.notes.map((n) => n.hand).sort(), ["left", "left", "right", "right"]);
+  assert.throws(() => midifile.parse(bytes, "", ["off", "off"]), /every track is off/);
+});
+
 console.log(passed + " passed");

@@ -22,6 +22,9 @@
     let song = null;
     let t = 0, playing = false, last = 0, waiting = false, waitSince = 0, preroll = 0, prerollBeat = 0, prerollStep = 0;
     let speed = 1, mode = "wait", metronome = false, countIn = false;
+    // How late your notes reach the app after you hear the music (MIDI
+    // in, audio out), in real ms: judged as if they came that much sooner.
+    let latency = 0;
     let hands = { right: "me", left: "me" };
     let loop = { on: false, from: 0, to: 0 };
     let req = -1, credited = new Set();
@@ -123,9 +126,10 @@
       if (preroll > 0) return;
       // Wait mode follows you: the next note asked for counts whenever you
       // play it, and the song catches up. Flow mode keeps to time.
-      if (need.includes(midi) && !credited.has(midi) && (mode === "wait" || t >= s.ms - EARLY_MS)) {
+      const heard = t - latency * speed;
+      if (need.includes(midi) && !credited.has(midi) && (mode === "wait" || heard >= s.ms - EARLY_MS)) {
         credited.add(midi);
-        const offset = waiting ? Math.round((now - waitSince) * speed) : Math.round(Math.max(t - s.ms, mode === "wait" ? 0 : -Infinity));
+        const offset = waiting ? Math.round(Math.max(0, now - waitSince - latency) * speed) : Math.round(Math.max(heard - s.ms, mode === "wait" ? 0 : -Infinity));
         pass.offsets.push(offset); total.offsets.push(offset);
         emit({ type: "hit", midi, step: req, offset });
         if (need.every((m) => credited.has(m))) stepDone(now);
@@ -190,7 +194,7 @@
         return;
       }
       if (mode === "flow") {
-        while (req >= 0 && song.steps[req].ms + LATE_MS < to) {
+        while (req >= 0 && song.steps[req].ms + LATE_MS + latency * speed < to) {
           const missed = required(song.steps[req]).filter((m) => !credited.has(m));
           pass.misses++; total.misses++;
           results.set(req, "miss");
@@ -265,6 +269,7 @@
       setHands, setMode, setSpeed, setLoop,
       setMetronome: (on) => { metronome = !!on; },
       setCountIn: (on) => { countIn = !!on; },
+      setLatency: (ms) => { latency = Math.max(0, Math.min(400, +ms || 0)); },
       required: (i) => required(song && song.steps[i]),
       results,
       stats: () => summary(total),
@@ -273,7 +278,7 @@
       get waiting() { return waiting; }, get speed() { return speed; }, get mode() { return mode; },
       get hands() { return { ...hands }; }, get loop() { return { ...loop }; }, get step() { return shown; },
       get next() { return req; }, get held() { return new Set(held); }, get counting() { return preroll > 0; },
-      get metronome() { return metronome; }, get countIn() { return countIn; },
+      get metronome() { return metronome; }, get countIn() { return countIn; }, get latency() { return latency; },
     };
   }
 

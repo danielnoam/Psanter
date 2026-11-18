@@ -44,7 +44,13 @@ watches it and reloads a lesson when you save it in your editor.
   sound) or off.
 - Speed 25 to 150 %, loops by dragging over bars, metronome, count-in.
 - Auto speed-up: each clean pass of a loop goes 5% faster, up to a goal.
-- Transpose up or down a semitone at a time (the score keeps its key).
+- Transpose up or down a semitone at a time (ABC scores redraw in the new
+  key; MusicXML keeps its written one).
+- Tempo changes in MusicXML are followed.
+- MIDI files: each track is the right hand, the left, split at middle C, or
+  left out, kept per file.
+- Timing calibration: tap along with clicks and the delay between hearing
+  a note and the app getting yours is taken off when judging.
 - Free play, and recording anything you play as a MIDI file.
 
 ### Writing and reading
@@ -52,13 +58,19 @@ watches it and reloads a lesson when you save it in your editor.
   Turn on **Notes from the piano** and what you play is written into the
   music block at the cursor (chords too). Saves to your folder, or as a
   copy for built-in lessons; unsaved text is kept as a draft.
-- Sight-reading drills: new music each time for the hands, key, range and
-  rhythm you pick, the next one coming when you finish.
+- Drills, new music each time: sight-reading (hands, key, range, rhythm),
+  scales (major and harmonic minor in every key, with fingering where the
+  usual one fits), I–IV–V–I chords in every key, rhythm only (any key
+  plays it, timing counts), and by ear (the app plays, you play it back).
+- Today's practice: a warm-up scale in the key of the day, a drill in that
+  key, then your piece, timed to your daily goal.
+- Two built-in courses: Getting started, and A first year (25 lessons on
+  reading, rhythm, scales and chords).
 
 ### Progress
 - Each run and loop pass: right, late, missed, wrong, and how far off the
   beat. Per piece: best tempo, runs, time practised and the bars that trip
-  you up, with a button to loop one.
+  you up, shaded on the score, with a button to loop one.
 - Minutes per day for the last two weeks, a daily goal, and days in a row
   that met it.
 
@@ -80,7 +92,9 @@ watches it and reloads a lesson when you save it in your editor.
 - Any MIDI piano (Web MIDI), with the app's notes sent back to it.
 - No piano: the computer's keyboard (A W S E D … from middle C, Z and X
   for octaves) or a click on the keys.
-- A built-in piano sound with a sustain pedal and a little room.
+- A recorded grand piano (the Salamander Grand Piano by Alexander Holm,
+  CC-BY 3.0, in `src/sounds/piano/`), or a lighter made sound, with a
+  sustain pedal and a little room.
 - Shortcuts you can change, on the computer's keys or on piano keys you
   never play.
 - Keyboards with lit keys: the next notes light up, on the lighting

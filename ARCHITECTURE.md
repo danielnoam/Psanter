@@ -34,7 +34,8 @@ src/midifile.js      reads and writes Standard MIDI Files
 src/lesson.js        front matter, block options, links: everything about lesson text
 src/engine.js        the practice engine: wait/flow, hands, loops, metronome, results
 src/midi.js          Web MIDI in and out, lit keys, and the computer keyboard as a piano
-src/synth.js         the built-in piano sound (Web Audio): pedal, room
+src/synth.js         the app's piano: Salamander samples (made sound until they load), pedal, room
+src/sounds/piano/    30 Salamander Grand Piano MP3s (CC-BY 3.0, LICENSE.md), one every 3 semitones
 src/score.js         score adapters: abcjs, OSMD, none; each returns a song
 src/roll.js          falling notes and the keyboard, one canvas
 src/timeline.js      the bars strip: seek, drag a loop
@@ -46,13 +47,13 @@ src/hotkeys.js       rebindable shortcuts, computer keys and piano keys (pure)
 src/recorder.js      what you play, as notes for midifile.write
 src/theme.js         the colour editor's tokens, its JSON and the readability check
 src/pdfview.js       the book panel: pdf.js, loaded the first time a book opens
-src/abcwrite.js      writing ABC: a note in a key (bar accidentals carried), drills from a seed (pure)
+src/abcwrite.js      writing ABC: a note in a key (bar accidentals carried); sight-reading, scale, chord, rhythm and ear exercises (pure)
 src/editor.js        the lesson editor: text, drafts, notes from the piano into the music block
 src/effects.js       glow over held keys and sparks where notes land (roll.setEffects)
 src/vendor/          abcjs, osmd, markdown-it, pdfjs, each with its licence
 src/keel/            from keel: errlog, platform, i18n, releases, motion (+ unused qr, github, drive)
-lessons/             the built-in course (with an example PDF book); index.json lists the courses
-test/                engine, lesson, layout, progress, hotkeys, recorder, theme, abcwrite and keel's checks; run-all.js runs them
+lessons/             the built-in courses, getting-started (with an example PDF book) and first-year; index.json lists them
+test/                engine, lesson, layout, progress, hotkeys, recorder, theme, abcwrite, score and keel's checks; run-all.js runs them
 server.js            the local server: this computer only (from keel)
 tools/build-www.js   copies sw.js's ASSETS into www-desktop/ for Tauri
 tools/               release.js, keel-sync.js, keel-checks.js (from keel)
@@ -93,6 +94,9 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
   Settings. A keyboard that sounds that channel plays them very softly.
 - **A pasted colour theme** can only set the known colour tokens to plain
   `#rrggbb` values (`theme.clean`), so it can't restyle anything else.
+- **Piano samples** (~2 MB) ship with the app, so the sound works offline.
+  One velocity layer only: soft notes are the same recording, quieter and
+  through a lowpass.
 - **Vendored libraries** (~2.5 MB) instead of a bundle, so there's still
   no build step. Updating one is replacing its file.
 
@@ -108,6 +112,18 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
   every listen would be a "100% right" best tempo.
 
 - OSMD's `halfTone` is MIDI − 12; its timestamps are in whole notes.
+  Tempo comes from `SourceMeasures[i].TempoInBPM` (0 means no change) and
+  `score.tempoMap` turns whole notes into ms through each change.
+- The timing delay (`engine.setLatency`) only moves judging: a note is
+  taken as played that many ms earlier. The song and the sound don't move.
+- abcjs `visualTranspose` redraws the score but leaves its audio pitches
+  written, so practice.js still transposes the song itself: don't add
+  `midiTranspose` too, or the notes move twice.
+- A rhythm drill maps every key to `abcwrite.TAP` in `routeNote`, before
+  the engine sees it.
+- `music.transpose` rebuilds the song; it copies the steps' `measure` and
+  a MIDI file's `tracks` back on, since the weak bars and the tracks panel
+  read them.
 - abcjs note timings are matched to notes by `startChar`, not by order.
 - Wait mode credits the next required note even when pressed early and
   jumps the song to it; flow mode only within 250 ms.

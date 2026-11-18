@@ -1,6 +1,9 @@
 // The app's own piano sound: for the hand the app plays when your piano
 // isn't its output, your notes when there's no piano, and the metronome.
-// Web Audio only, nothing to download. Each note is two slightly detuned
+// The grand piano is recorded samples (src/sounds/piano, Salamander Grand
+// Piano, CC-BY 3.0), one every three semitones, pitched to the notes
+// between. Until they load, or with the simple sound picked, it's made
+// with Web Audio: each note is two slightly detuned
 // harmonic tones whose brightness fades as they ring (a piano's filter
 // sweep), a short hammer knock, a pitch-dependent two-stage decay, the
 // sustain pedal, and a small room.
@@ -11,8 +14,11 @@
     let ctx = null, master = null, dry = null, wet = null, noise = null, comp = null, tap = null;
     const voices = new Map();
     const waves = new Map();
-    let volume = 0.7, pedal = false, roomLevel = 0.16;
+    let volume = 0.7, pedal = false, roomLevel = 0.16, kind = "grand";
     const sustained = new Set();
+    // midi → AudioBuffer, filled as the samples arrive.
+    const samples = new Map();
+    let loading = null;
 
     function ready() {
       if (!ctx) {
@@ -34,7 +40,56 @@
         for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
       }
       if (ctx.state === "suspended") ctx.resume();
+      if (kind === "grand" && !loading) loading = loadSamples();
       return ctx;
+    }
+
+    const SAMPLE_NAMES = ["A0", "C8"];
+    for (let o = 1; o <= 7; o++) for (const n of ["C", "Ds", "Fs", "A"]) SAMPLE_NAMES.push(n + o);
+    function sampleMidi(name) {
+      const m = /^([A-G]s?)(\d)$/.exec(name);
+      return { C: 0, Ds: 3, Fs: 6, A: 9 }[m[1]] + (+m[2] + 1) * 12;
+    }
+    // The files are fetched as soon as the app opens; decoding waits for
+    // the first sound, since the audio can only start after a click or key.
+    let raw = null;
+    function fetchSamples() {
+      if (!raw) raw = SAMPLE_NAMES.map((name) => fetch("./src/sounds/piano/" + name + ".mp3").then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null));
+      return raw;
+    }
+    function loadSamples() {
+      return Promise.all(fetchSamples().map(async (bytes, i) => {
+        try {
+          const b = await bytes;
+          if (b) samples.set(sampleMidi(SAMPLE_NAMES[i]), await ctx.decodeAudioData(b));
+        } catch (e) { /* that one stays on the made sound */ }
+      }));
+    }
+    function nearestSample(midi) {
+      let best = null, gap = Infinity;
+      for (const m of samples.keys()) { const g = Math.abs(m - midi); if (g < gap) { gap = g; best = m; } }
+      return gap <= 3 ? best : null;
+    }
+
+    function sampled(midi, vel, from) {
+      const c = ctx, t = c.currentTime;
+      const v = Math.pow(Math.max(1, vel) / 127, 1.4);
+      const src = c.createBufferSource();
+      src.buffer = samples.get(from);
+      src.playbackRate.value = Math.pow(2, (midi - from) / 12);
+      // A soft note is darker as well as quieter.
+      const filter = c.createBiquadFilter();
+      filter.type = "lowpass"; filter.Q.value = 0.5;
+      filter.frequency.value = Math.min(18000, 900 + v * 17000);
+      const out = c.createGain();
+      out.gain.setValueAtTime(v * 0.9, t);
+      src.connect(filter); filter.connect(out);
+      const pan = c.createStereoPanner ? c.createStereoPanner() : null;
+      if (pan) { pan.pan.value = Math.max(-0.35, Math.min(0.35, (midi - 64) / 60)); out.connect(pan); pan.connect(dry); pan.connect(wet); }
+      else { out.connect(dry); out.connect(wet); }
+      src.start(t);
+      voices.set(midi, { out, oscs: [src], end: t + src.buffer.duration });
+      sustained.delete(midi);
     }
 
     // A small room: stereo noise fading away.
@@ -70,6 +125,8 @@
       const c = ready(); if (!c) return;
       if (voices.has(midi)) stop(midi, 0.03);
       if (voices.size >= MAX_VOICES) stop(voices.keys().next().value, 0.03);
+      const from = kind === "grand" ? nearestSample(midi) : null;
+      if (from != null) return sampled(midi, vel, from);
       const t = c.currentTime;
       const f = freq(midi);
       const v = Math.pow(Math.max(1, vel) / 127, 1.6);
@@ -144,6 +201,11 @@
     }
 
     function setVolume(x) { volume = Math.max(0, Math.min(1, x)); if (master) master.gain.value = volume; }
+    // "grand" (the samples) or "simple" (made, nothing to load).
+    function setSound(k) {
+      kind = k === "simple" ? "simple" : "grand";
+      if (kind === "grand") { fetchSamples(); if (ctx && !loading) loading = loadSamples(); }
+    }
     function setRoom(x) { roomLevel = Math.max(0, Math.min(0.6, x)); if (wet) wet.gain.value = roomLevel; }
 
     // The app's sound as a stream, for a video of the falling notes.
@@ -153,7 +215,8 @@
       return tap.stream;
     }
 
-    return { noteOn, noteOff, allOff, click, setVolume, setRoom, setPedal, stream, unlock: ready };
+    return { noteOn, noteOff, allOff, click, setVolume, setRoom, setSound, setPedal, stream, unlock: ready,
+      get loaded() { return samples.size; } };
   }
 
   window.Piano = window.Piano || {};
