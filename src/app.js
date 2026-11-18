@@ -367,7 +367,7 @@
     // The editor only stays for a lesson; pieces, drills and free play have no text.
     if (!(lessonState && lessonState.path) && P.layout.panels(currentLayout()).includes("editor")) settings.set("layout", P.layout.remove(currentLayout(), "editor"));
     $("title").textContent = title;
-    document.title = title + " · Piano";
+    document.title = title + " - Piano";
     renderLayout();
   }
 
@@ -477,7 +477,7 @@
     if (o.tempo) parts.push(t("{n} bpm", { n: o.tempo }));
     if (o.mode === "flow") parts.push(t("flow"));
     if (o.loop) parts.push(t("loop"));
-    return parts.join(" · ");
+    return parts.join(", ");
   }
 
   async function activate(which) {
@@ -1014,7 +1014,7 @@
     const tg = practice && practice.target;
     if (!tg) return "";
     if (tg.source && tg.source.drill) return tg.source.label;
-    if (tg.source && tg.source.block != null) return (tg.title || t("Exercise {n}", { n: tg.source.block + 1 })) + " · " + ($("title").textContent || "");
+    if (tg.source && tg.source.block != null) return (tg.title || t("Exercise {n}", { n: tg.source.block + 1 })) + ", " + ($("title").textContent || "");
     return tg.title || "";
   }
 
@@ -1083,7 +1083,7 @@
         for (const p of passes.slice(0, 8)) {
           const li = document.createElement("li");
           li.append(el("span", null, p.kind === "pass" ? t("Pass {n}", { n: p.n }) : t("Whole piece")),
-            el("span", null, p.stats.accuracy + "%" + (p.clean ? " · " + t("clean") : "")), el("span", "dim", pct(p.speed) + " · " + t(p.mode === "flow" ? "flow" : "wait")));
+            el("span", null, p.stats.accuracy + "%" + (p.clean ? ", " + t("clean") : "")), el("span", "dim", pct(p.speed) + ", " + t(p.mode === "flow" ? "flow" : "wait")));
           ul.appendChild(li);
         }
         sec.appendChild(ul);
@@ -1104,7 +1104,7 @@
           w.appendChild(el("span", "dim", t("The bars that trip you up")));
           for (const b of weak) {
             const row = el("div", "row");
-            row.append(el("span", null, t("Bar {n}", { n: b.measure + 1 }) + " · " + t("{n}% trouble", { n: Math.round(b.score * 100) })), button(t("Loop it"), "btn", () => practice.act.loopMeasure(b.measure)));
+            row.append(el("span", null, t("Bar {n}", { n: b.measure + 1 }) + ", " + t("{n}% trouble", { n: Math.round(b.score * 100) })), button(t("Loop it"), "btn", () => practice.act.loopMeasure(b.measure)));
             w.appendChild(row);
           }
           piece.appendChild(w);
@@ -1138,7 +1138,7 @@
     const done = progress.today(d);
     const line = el("p", "dim streak");
     if (streak > 1) line.appendChild(icon("flame"));
-    line.append(t("Today {time}", { time: minutes(done) }) + (goal ? " " + t("of {n} min", { n: goal }) + (done >= goal * 60 ? " · " + t("goal met") : "") : "") + (streak > 1 ? " · " + t("{n} days in a row", { n: streak }) : ""));
+    line.append(t("Today {time}", { time: minutes(done) }) + (goal ? " " + t("of {n} min", { n: goal }) + (done >= goal * 60 ? ", " + t("goal met") : "") : "") + (streak > 1 ? ", " + t("{n} days in a row", { n: streak }) : ""));
     sec.appendChild(line);
     if (goal) {
       const meter = document.createElement("progress");
@@ -1331,7 +1331,7 @@
   function planLabel(s) {
     const where = s.whole ? t("Whole piece") : s.from === s.to ? t("Bar {n}", { n: s.from + 1 }) : t("Bars {a}–{b}", { a: s.from + 1, b: s.to + 1 });
     const who = t(s.hands === "both" ? "both hands" : s.hands === "left" ? "left hand" : "right hand");
-    return where + " · " + who + " · " + Math.round(s.speed * 100) + "%";
+    return where + ", " + who + ", " + Math.round(s.speed * 100) + "%";
   }
   function startPlan(at = 0) {
     const key = pieceKey(), song = practice.song;
@@ -1492,7 +1492,7 @@
     if (i === chordShown) return;
     chordShown = i;
     const name = (k) => (chordSeq[k] ? chordSeq[k].name : "");
-    box.replaceChildren(el("span", "dim", name(i - 1)), el("strong", null, name(i) || "·"), el("span", "dim", name(i + 1)));
+    box.replaceChildren(el("span", "dim", name(i - 1)), el("strong", null, name(i) || "–"), el("span", "dim", name(i + 1)));
     box.hidden = false;
   }
 
@@ -1547,7 +1547,7 @@
     const c = el("section", "course");
     const head = el("div", "course-head");
     head.append(el("h3", null, t("Today's practice")), button(t("Start"), "btn primary", () => startRoutine()));
-    c.append(head, el("p", "course-note", plan.steps.map((s) => s.name + " (" + t("{n} min", { n: s.minutes }) + ")").join(" · ")));
+    c.append(head, el("p", "course-note", plan.steps.map((s) => s.name + " (" + t("{n} min", { n: s.minutes }) + ")").join(", ")));
     return c;
   }
   function startRoutine() { routine = { ...routinePlan(), at: -1 }; nextRoutineStep(); }
@@ -1579,7 +1579,7 @@
     if (left <= 0 && !routine.told) { routine.told = true; toast(last ? t("Time's up. Finish when you're ready.") : t("Time for the next step.")); }
     const clock = left > 0 ? t("{m}:{s} left", { m: Math.floor(left / 60), s: String(left % 60).padStart(2, "0") }) : t("Time's up");
     const text = el("span", "grow");
-    text.append(el("strong", null, t("Today, {n} of {all}", { n: routine.at + 1, all: routine.steps.length }) + " · "), document.createTextNode(s.name));
+    text.append(el("strong", null, t("Today, {n} of {all}", { n: routine.at + 1, all: routine.steps.length }) + ": "), document.createTextNode(s.name));
     const next = button(last ? t("Finish") : t("Next step"), "btn" + (left <= 0 ? " primary" : ""), () => (last ? endRoutine(true) : nextRoutineStep()));
     bar.replaceChildren(icon("target"), text, el("span", "dim", clock), next, iconButton("x", t("Stop today's practice"), () => endRoutine(false)));
     bar.hidden = false;
@@ -1660,17 +1660,17 @@
     if (type === "scale" || type === "chords") {
       const key = pickKey(d.key, [...W.KEYS, ...W.MINORS]);
       text = type === "scale" ? W.scaleExercise({ key, hand: d.hand, octaves: +d.octaves || 1, tempo: d.tempo }) : W.chordExercise({ key, hand: d.hand, tempo: d.tempo });
-      label = t(type === "scale" ? "Scale" : "Chords") + " · " + keyLabel(key) + ", " + handName;
+      label = t(type === "scale" ? "Scale" : "Chords") + ": " + keyLabel(key) + ", " + handName;
       id = [type, key, d.hand, type === "scale" ? +d.octaves || 1 : ""].join("|");
     } else if (type === "rhythm") {
       text = W.rhythmExercise({ rhythm: d.rhythm, bars: +d.bars || 4, tempo: d.tempo, seed });
-      label = t("Rhythm") + " · " + t(d.rhythm === "mixed" ? "mixed" : "steady");
+      label = t("Rhythm") + ": " + t(d.rhythm === "mixed" ? "mixed" : "steady");
       opts = { hands: "right", tempo: d.tempo, mode: "flow", metronome: true };
       id = ["rhythm", d.rhythm].join("|");
     } else {
       const key = W.KEYS.includes(d.key) ? d.key : "C";
       text = W.drill({ ...d, key, bars: +d.bars || 4, seed });
-      label = t("Sight-reading") + " · " + key.replace("b", "♭") + ", " + t(d.range === "five" ? "five notes" : d.range === "octave" ? "an octave" : "two octaves") + ", " + handName;
+      label = t("Sight-reading") + ": " + key.replace("b", "♭") + ", " + t(d.range === "five" ? "five notes" : d.range === "octave" ? "an octave" : "two octaves") + ", " + handName;
       id = [key, d.range, d.hand, d.rhythm].join("|");
     }
     passes = [];
