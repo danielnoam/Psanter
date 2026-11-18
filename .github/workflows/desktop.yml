@@ -3,8 +3,9 @@
 #
 # Runs only by hand (Actions → Windows app → Run workflow) until Daniel asks
 # for releases: then it also runs on a merge with a new APP_VERSION and
-# attaches the zip to that version's release. The zip is this run's
-# artifact either way.
+# attaches the zip to that version's release. The run's artifact is the
+# Piano folder itself: GitHub zips every artifact, so uploading the zip
+# would put a zip inside the download.
 name: Windows app
 
 on:
@@ -65,4 +66,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Piano-${{ env.V }}-windows
-          path: out/Piano-*.zip
+          path: out/Piano/
