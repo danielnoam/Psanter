@@ -47,8 +47,15 @@ watches it and reloads a lesson when you save it in your editor.
 - Transpose up or down a semitone at a time (ABC scores redraw in the new
   key; MusicXML keeps its written one).
 - Tempo changes in MusicXML are followed.
-- MIDI files: each track is the right hand, the left, split at middle C, or
-  left out, kept per file.
+- MIDI files: each track is the right hand, the left, split between the
+  hands, or left out, kept per file. A track for both hands is split by
+  working out which hand can reach each note. Empty bars at the start are
+  skipped.
+- Chords above the falling notes while a piece plays: the last, the
+  current and the next.
+- Your keyboard's touch: how hard a press counts, presses too light to
+  count, and a key counted once when Windows lists the keyboard twice. A
+  delay check shows where the time goes between a key and the sound.
 - Timing calibration: tap along with clicks and the delay between hearing
   a note and the app getting yours is taken off when judging.
 - Free play, with the chord you hold named, and recording anything you

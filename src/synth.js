@@ -11,7 +11,7 @@
   const MAX_VOICES = 48;
 
   function create() {
-    let ctx = null, master = null, dry = null, wet = null, noise = null, comp = null, tap = null;
+    let ctx = null, master = null, dry = null, wet = null, noise = null, clip = null, tap = null;
     const voices = new Map();
     const waves = new Map();
     let volume = 0.7, pedal = false, roomLevel = 0.16, kind = "grand";
@@ -27,9 +27,12 @@
         ctx = new AC({ latencyHint: "interactive" });
         master = ctx.createGain();
         master.gain.value = volume;
-        comp = ctx.createDynamicsCompressor();
-        comp.threshold.value = -14; comp.ratio.value = 4;
-        master.connect(comp); comp.connect(ctx.destination);
+        // A soft clip, not a compressor: a compressor's look-ahead holds
+        // every sound back about 6 ms, which you feel on the keys.
+        clip = ctx.createWaveShaper();
+        clip.curve = softClip();
+        clip.oversample = "none";
+        master.connect(clip); clip.connect(ctx.destination);
         dry = ctx.createGain(); dry.connect(master);
         wet = ctx.createGain(); wet.gain.value = roomLevel;
         const verb = ctx.createConvolver();
@@ -90,6 +93,16 @@
       src.start(t);
       voices.set(midi, { out, oscs: [src], end: t + src.buffer.duration });
       sustained.delete(midi);
+    }
+
+    // Straight up to 0.6, then bends smoothly to 1, so loud chords don't crack.
+    function softClip() {
+      const n = 2049, c = new Float32Array(n), k = 0.6;
+      for (let i = 0; i < n; i++) {
+        const x = (i / (n - 1)) * 2 - 1, a = Math.abs(x);
+        c[i] = Math.sign(x) * (a <= k ? a : k + (1 - k) * Math.tanh((a - k) / (1 - k)));
+      }
+      return c;
     }
 
     // A small room: stereo noise fading away.
@@ -211,11 +224,17 @@
     // The app's sound as a stream, for a video of the falling notes.
     function stream() {
       if (!ready()) return null;
-      if (!tap) { tap = ctx.createMediaStreamDestination(); comp.connect(tap); }
+      if (!tap) { tap = ctx.createMediaStreamDestination(); clip.connect(tap); }
       return tap.stream;
     }
 
-    return { noteOn, noteOff, allOff, click, setVolume, setRoom, setSound, setPedal, stream, unlock: ready,
+    // What the sound adds between a note and the speaker, in ms.
+    function delay() {
+      if (!ctx) return null;
+      return { buffer: Math.round((ctx.baseLatency || 0) * 1000), output: Math.round((ctx.outputLatency || 0) * 1000) };
+    }
+
+    return { noteOn, delay, noteOff, allOff, click, setVolume, setRoom, setSound, setPedal, stream, unlock: ready,
       get loaded() { return samples.size; } };
   }
 

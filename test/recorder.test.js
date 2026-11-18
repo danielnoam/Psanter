@@ -2,6 +2,7 @@
 const assert = require("assert");
 global.window = {};
 require("../src/recorder.js");
+require("../src/hands.js");
 require("../src/midifile.js");
 require("../src/music.js");
 const { recorder, midifile } = window.Piano;

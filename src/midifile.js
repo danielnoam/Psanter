@@ -3,9 +3,12 @@
 //
 // Hands: a track named left/bass/LH is the left hand, right/treble/RH the
 // right. Otherwise, with two note tracks the first is the right hand and
-// the second the left; with one, notes below middle C go to the left hand.
+// the second the left; with one, the hands are worked out (hands.js).
+//
+// Empty bars before the music starts are left out (opts.skipLead), so a
+// file opens where the playing does. The file itself isn't changed.
 (function () {
-  function parse(bytes, title = "", choice = null) {
+  function parse(bytes, title = "", choice = null, opts = {}) {
     const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     let p = 0;
     const u32 = () => { const v = (b[p] << 24 | b[p + 1] << 16 | b[p + 2] << 8 | b[p + 3]) >>> 0; p += 4; return v; };
@@ -65,20 +68,33 @@
     // or off), else the guess.
     const guess = assignHands(noteTracks);
     const hands = noteTracks.map((_, i) => (choice && choice[i]) || guess[i] || "split");
+    const ts = sigs.length ? sigs.sort((a, c) => a.tick - c.tick)[0].ts : [4, 4];
+    // Whole bars only, counted on the first time signature.
+    let cut = 0;
+    const played = noteTracks.filter((_, i) => hands[i] !== "off");
+    if (opts.skipLead !== false && played.length) {
+      const first = Math.min(...played.map((tr) => Math.min(...tr.notes.map((n) => n.tick))));
+      const bar = division * 4 * ts[0] / ts[1];
+      // A note a hair early for the downbeat still counts as on it.
+      cut = Math.floor((first + division / 32) / bar) * bar;
+    }
+    const cutMs = toMs(cut);
     const notes = [];
     noteTracks.forEach((tr, i) => {
       if (hands[i] === "off") return;
-      for (const n of tr.notes) {
+      const split = hands[i] === "split" ? window.Piano.hands.assign(tr.notes.map((n) => ({ midi: n.midi, ms: toMs(n.tick) }))) : null;
+      tr.notes.forEach((n, j) => {
         const ms = toMs(n.tick);
-        notes.push({ midi: n.midi, ms, dur: Math.max(20, toMs(n.endTick) - ms), vel: n.vel,
-          hand: hands[i] === "split" ? (n.midi < 60 ? "left" : "right") : hands[i] });
-      }
+        notes.push({ midi: n.midi, ms: Math.max(0, ms - cutMs), dur: Math.max(20, toMs(n.endTick) - ms), vel: n.vel, hand: split ? split[j] : hands[i] });
+      });
     });
     if (!notes.length) throw new Error("every track is off");
-    const tempo = tempos.length ? tempos.map((e) => ({ ms: toMs(e.tick), bpm: 60000000 / e.tempo })) : [{ ms: 0, bpm: 120 }];
-    if (tempo[0].ms > 0) tempo.unshift({ ms: 0, bpm: 120 });
-    const ts = sigs.length ? sigs.sort((a, c) => a.tick - c.tick)[0].ts : [4, 4];
+    // The tempo in force at the cut starts the song; later ones move back.
+    let tempo = tempos.length ? tempos.map((e) => ({ ms: toMs(e.tick) - cutMs, bpm: 60000000 / e.tempo })) : [{ ms: 0, bpm: 120 }];
+    const before = tempo.filter((x) => x.ms <= 0.5);
+    tempo = [{ ms: 0, bpm: before.length ? before[before.length - 1].bpm : 120 }, ...tempo.filter((x) => x.ms > 0.5)];
     const song = window.Piano.music.song({ notes, title, tempo, beatsPerBar: ts[0], beatUnit: ts[1] });
+    song.skippedBars = cut ? Math.round(cut / (division * 4 * ts[0] / ts[1])) : 0;
     song.tracks = noteTracks.map((tr, i) => ({ name: tr.name || "", notes: tr.notes.length, hand: hands[i], guessed: !(choice && choice[i]) }));
     return song;
   }

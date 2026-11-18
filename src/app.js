@@ -18,6 +18,7 @@
     lookahead: 3, range: "song", volume: 0.7, autoVolume: 0.8, room: 0.16, output: "", layout: null, last: null,
     noteNames: "off", fingers: true, autoSpeed: false, autoSpeedGoal: 100, colors: { light: {}, dark: {} },
     keys: {}, pianoKeys: {}, bookPages: {}, effects: null, lightChannel: -1, goal: 15, latency: 0, midiHands: {}, sound: "grand",
+    touch: "normal", touchFloor: 0, doubles: true, skipEmptyBars: true, prompter: true,
     drill: { type: "reading", hand: "right", range: "five", key: "C", rhythm: "quarters", bars: 4, tempo: 70, next: true, octaves: 1, count: 4, earRange: "five" } };
   const settings = (() => {
     let data = { ...DEFAULTS };
@@ -93,7 +94,8 @@
   }
   function pedal(down) { synth.setPedal(down); recorder.setPedal(down, performance.now()); }
 
-  const midi = P.midi.create({ onNote: routeNote, onDevices: () => renderDevice(), onPedal: pedal });
+  const midi = P.midi.create({ onNote: routeNote, onDevices: () => renderDevice(), onPedal: pedal,
+    touch: () => ({ curve: settings.get("touch"), floor: settings.get("touchFloor"), doubles: settings.get("doubles") }) });
   const typing = P.midi.typing({
     onNote: routeNote,
     enabled: () => settings.get("typing") && (calibrating || (!$("settings").open && !themeOpen())),
@@ -261,6 +263,8 @@
     rollWrap.appendChild(rollCanvas);
     const chord = el("div", "chord-name"); chord.id = "chord"; chord.hidden = true; chord.setAttribute("aria-live", "polite");
     rollWrap.appendChild(chord);
+    const prompter = el("div", "chord-prompter"); prompter.id = "prompter"; prompter.hidden = true;
+    rollWrap.appendChild(prompter);
     mounts.roll = rollWrap;
     const timelineCanvas = document.createElement("canvas");
     mounts.stats = el("div", "stats");
@@ -278,6 +282,7 @@
       scoreEl: mounts.score, rollCanvas, timelineCanvas, midi, synth, settings,
       onChange: (s) => { renderTransport(s); statsSoon(); },
       onEvent,
+      onFrame: prompt,
       onExpected: (list) => midi.light(list, settings.get("lightChannel")),
     });
     fx = P.effects.create();
@@ -529,7 +534,7 @@
       row.appendChild(pick);
       box.appendChild(row);
     });
-    box.appendChild(el("p", "dim", t("Split sends notes below middle C to the left hand.")));
+    box.appendChild(el("p", "dim", t("Split gives each note to the hand that can reach it best.")));
     const old = mounts.score.querySelector(".tracks");
     if (old) old.replaceWith(box); else mounts.score.appendChild(box);
   }
@@ -823,14 +828,22 @@
     const latRow = setting(t("Timing delay"), lat, null);
     latRow.querySelector(".set-text").appendChild(calNote);
     latRow.querySelector(".set-control").appendChild(measure);
+    const curve = select([["light", t("Light: soft presses count louder")], ["normal", t("Normal")], ["heavy", t("Heavy: you have to press harder")], ["fixed", t("Fixed: every press the same")]],
+      settings.get("touch") || "normal", (v) => settings.set("touch", v));
+    const floor = range(0, 40, 2, settings.get("touchFloor") || 0, (v) => settings.set("touchFloor", v), (v) => (v ? String(v) : t("off")));
     return page(t("Piano"), card,
+      setGroup(t("Touch"),
+        setting(t("Touch response"), curve, t("How hard a press counts. If loud and soft are judged wrong for how you play, change this first.")),
+        setting(t("Ignore presses lighter than"), floor, t("For a keyboard that sends a note when you only brush a key.")),
+        toggle(t("Count a key once"), "doubles", t("Drops a second press of the same key within 40 ms, for a keyboard Windows lists twice."))),
       setGroup(t("Sound"),
         setting(t("The app's notes play on"), out, t("Your piano, if it has MIDI in, or the app's own sound.")),
         toggle(t("Play my notes in the app too"), "echo", t("For a keyboard with no speakers of its own."))),
       setGroup(t("Playing"),
         latRow,
         toggle(t("Computer keyboard as a piano"), "typing", t("A is middle C; Z and X change octave.")),
-        setting(t("Lit keys"), lights, t("Lights the next notes on a keyboard with lights in its keys, on its lighting channel."))));
+        setting(t("Lit keys"), lights, t("Lights the next notes on a keyboard with lights in its keys, on its lighting channel."))),
+      delayCheck());
   }
 
   function practicePage() {
@@ -839,7 +852,10 @@
         setting(t("How far ahead"), range(1, 8, 0.5, settings.get("lookahead"), (v) => { settings.set("lookahead", v); practice && practice.draw(); }, (v) => t("{n} s", { n: v }))),
         setting(t("Keyboard"), select([["song", t("Just the piece's notes")], ["full", t("All 88 keys")]], settings.get("range"), (v) => { settings.set("range", v); practice && practice.roll.setRange(v); practice && practice.draw(); })),
         setting(t("Note names"), select([["off", t("None")], ["letters", t("Letters (C D E)")], ["solfege", t("Solfège (Do Re Mi)")]], settings.get("noteNames"), (v) => { settings.set("noteNames", v); applyLabels(); })),
-        toggle(t("Finger numbers"), "fingers", t("Where the music has them."), applyLabels)),
+        toggle(t("Finger numbers"), "fingers", t("Where the music has them."), applyLabels),
+        toggle(t("Chords above the falling notes"), "prompter", t("The last, current and next chord while a piece plays."), () => { chordSeq = null; prompt(); })),
+      setGroup(t("MIDI files"),
+        toggle(t("Skip empty bars at the start"), "skipEmptyBars", t("Opens a file where the music starts. The file isn't changed. From the next file you open."))),
       setGroup(t("Goals"),
         setting(t("Daily goal"), range(0, 60, 5, settings.get("goal"), (v) => { settings.set("goal", v); statsSoon(); }, (v) => (v ? t("{n} min", { n: v }) : t("none"))), t("Today's practice is timed to it.")),
         setting(t("Auto speed-up stops at"), range(50, 150, 5, settings.get("autoSpeedGoal"), (v) => settings.set("autoSpeedGoal", v), (v) => v + "%"), t("Each clean pass of a loop goes 5% faster, up to here."))));
@@ -901,6 +917,32 @@
     for (const [name, what] of credits) { const r = el("div", "set-row"); r.append(el("strong", null, name), el("span", "dim", what)); list.appendChild(r); }
     return page(t("About"), el("p", "dim", t("Piano, version {v}. A practice app for your own lessons, on this computer.", { v: APP_VERSION })),
       el("h4", null, t("Made with")), list);
+  }
+
+  // Where the time goes between a key and the sound: the keyboard's
+  // message reaching the app, the sound's buffer, then Windows and the
+  // speakers. Sound first heard after the first key.
+  function delayCheck() {
+    const body = el("div", "delay-check");
+    function fill() {
+      const key = midi.inputDelay(), snd = synth.delay();
+      const rows = [
+        [t("Key to app"), key ? t("{n} ms", { n: key.average.toFixed(1) }) : "–", key ? t("worst {n} ms, last {c} keys", { n: key.worst.toFixed(1), c: key.count }) : t("Play a few keys on your piano")],
+        [t("Sound buffer"), snd ? t("{n} ms", { n: snd.buffer }) : "–", snd ? t("The app's own") : t("Known once the app has made a sound")],
+        [t("Windows and speakers"), snd ? t("{n} ms", { n: snd.output }) : "–", t("Bluetooth speakers add 100 ms or more")],
+      ];
+      const total = (key ? key.average : 0) + (snd ? snd.buffer + snd.output : 0);
+      body.replaceChildren(...rows.map(([a, b, c]) => { const r = el("div", "delay-row"); r.append(el("span", null, a), el("strong", null, b), el("span", "dim", c)); return r; }));
+      const sum = el("div", "delay-row total"); sum.append(el("span", null, t("Key to speaker, in the app's sound")), el("strong", null, key && snd ? t("about {n} ms", { n: Math.round(total) }) : "–"), el("span", "dim", t("Your piano's own sound has none of this")));
+      body.appendChild(sum);
+    }
+    fill();
+    const again = button(t("Check again"), "btn", () => { synth.unlock(); fill(); });
+    again.prepend(icon("refresh"));
+    const row = setting(t("Delay check"), again, t("Where the time goes between pressing a key and hearing the app."));
+    row.classList.add("wide");
+    row.querySelector(".set-text").appendChild(body);
+    return setGroup(t("Delay"), row);
   }
 
   // Tap along with 8 clicks; the middle of your offsets is the delay.
@@ -1437,6 +1479,23 @@
     else if (!freeHeld.size) box.hidden = true;
   }
 
+  // ---- chords while a piece plays: last, now, next ----
+  let chordSeq = null, chordSong = null, chordShown = -2;
+  function prompt() {
+    const box = $("prompter");
+    if (!box || !practice) return;
+    const song = practice.song;
+    if (!song || !settings.get("prompter")) { box.hidden = true; chordShown = -2; return; }
+    if (chordSong !== song || !chordSeq) { chordSong = song; chordSeq = P.chords.sequence(song); chordShown = -2; }
+    if (chordSeq.length < 2) { box.hidden = true; return; }
+    const i = P.chords.indexAt(chordSeq, practice.engine.time);
+    if (i === chordShown) return;
+    chordShown = i;
+    const name = (k) => (chordSeq[k] ? chordSeq[k].name : "");
+    box.replaceChildren(el("span", "dim", name(i - 1)), el("strong", null, name(i) || "·"), el("span", "dim", name(i + 1)));
+    box.hidden = false;
+  }
+
   // ---- pieces to review ----
   function reviewCard() {
     const due = progress.dueForReview(today()).filter((r) => openable(r.key));
@@ -1820,7 +1879,7 @@
   const motion = K.motion.create();
   window.PianoApp = { version: APP_VERSION, i18n, settings, get practice() { return practice; }, library, openLesson, openPiece, openFree, showLibrary, motion, toast,
     progress, hotkeys: hot, recorder, get editor() { return editor; }, toggleEditor, openDrills, newDrill, toggleVideo, routeNote, runAction, toggleLayoutEditor, openThemeEditor, openBook, get pdf() { return pdf; },
-    synth, startRoutine, get routine() { return routine; }, get ear() { return ear; },
+    midi, synth, startRoutine, get routine() { return routine; }, get ear() { return ear; },
     startPlan, get plan() { return plan; }, get lastTake() { return lastTake; }, replay };
   start().catch((e) => { toast(String(e && e.message || e)); K.errlog.note("start", String(e && e.stack || e)); });
 })();
