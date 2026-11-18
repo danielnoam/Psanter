@@ -47,13 +47,16 @@ src/hotkeys.js       rebindable shortcuts, computer keys and piano keys (pure)
 src/recorder.js      what you play, as notes for midifile.write
 src/theme.js         the colour editor's tokens, its JSON and the readability check
 src/pdfview.js       the book panel: pdf.js, loaded the first time a book opens
+src/plan.js          a piece's practice plan: sections × hands × speeds (pure)
+src/chords.js        names the chord under your fingers (pure)
+src/takes.js         a run's notes for replay, loud-and-soft judging, the replay scheduler
 src/abcwrite.js      writing ABC: a note in a key (bar accidentals carried); sight-reading, scale, chord, rhythm and ear exercises (pure)
 src/editor.js        the lesson editor: text, drafts, notes from the piano into the music block
 src/effects.js       glow over held keys and sparks where notes land (roll.setEffects)
 src/vendor/          abcjs, osmd, markdown-it, pdfjs, each with its licence
 src/keel/            from keel: errlog, platform, i18n, releases, motion (+ unused qr, github, drive)
 lessons/             the built-in courses, getting-started (with an example PDF book) and first-year; index.json lists them
-test/                engine, lesson, layout, progress, hotkeys, recorder, theme, abcwrite, score and keel's checks; run-all.js runs them
+test/                engine, lesson, layout, progress, hotkeys, recorder, theme, abcwrite, score, plan and keel's checks; run-all.js runs them
 server.js            the local server: this computer only (from keel)
 tools/build-www.js   copies sw.js's ASSETS into www-desktop/ for Tauri
 tools/               release.js, keel-sync.js, keel-checks.js (from keel)
@@ -119,6 +122,12 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 - abcjs `visualTranspose` redraws the score but leaves its audio pitches
   written, so practice.js still transposes the song itself: don't add
   `midiTranspose` too, or the notes move twice.
+- Dynamics: abcjs gives each note a volume (with beat accents of ±10);
+  OSMD's are read from `SourceMeasures[].StaffLinkedExpressions` and
+  their `instantaneousDynamic.Volume` (0–1). Music with less than 25
+  between its softest and loudest note isn't judged for loud and soft.
+- Review dates are day keys (`YYYY-MM-DD`) compared as strings, which
+  sorts right only because they're zero-padded.
 - A rhythm drill maps every key to `abcwrite.TAP` in `routeNote`, before
   the engine sees it.
 - `music.transpose` rebuilds the song; it copies the steps' `measure` and

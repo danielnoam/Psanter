@@ -6,6 +6,9 @@
   const HISTORY = 40;
   // A flow-mode run this good counts toward the piece's best tempo.
   const GOOD = 90;
+  // Days until a learned piece comes back for review, longer each time it
+  // goes well.
+  const INTERVALS = [1, 3, 7, 14, 30, 60];
 
   function create(store) {
     let data = blank();
@@ -39,12 +42,33 @@
       p.history.push({ day, speed: run.speed, mode: run.mode, accuracy: s.accuracy, wrong: s.wrong, misses: s.misses, late: s.late, timing: s.timing, kind: run.kind });
       if (p.history.length > HISTORY) p.history.splice(0, p.history.length - HISTORY);
       if (run.mode === "flow" && s.accuracy >= GOOD && (!p.best || run.speed > p.best.speed)) p.best = { speed: run.speed, accuracy: s.accuracy, day };
+      review(key, p, s.accuracy, day);
       for (const [m, b] of Object.entries(run.bars || {})) {
         const o = p.bars[m] || (p.bars[m] = { played: 0, miss: 0, late: 0 });
         o.played += b.played || 0; o.miss += b.miss || 0; o.late += b.late || 0;
       }
       touch();
       return p;
+    }
+
+    // A piece is learned from its first run at GOOD or better; each good
+    // run on or after its due day moves it to the next interval, a poor one
+    // (under 70%) brings it back tomorrow. Drills aren't pieces to review.
+    function review(key, p, accuracy, day) {
+      if (/^drill\|/.test(key) || !day) return;
+      const r = p.review;
+      if (!r) { if (accuracy >= GOOD) p.review = { level: 0, due: addDays(day, INTERVALS[0]) }; return; }
+      if (day < r.due) return;
+      if (accuracy >= GOOD) { r.level = Math.min(INTERVALS.length - 1, r.level + 1); r.due = addDays(day, INTERVALS[r.level]); }
+      else if (accuracy < 70) { r.level = 0; r.due = addDays(day, 1); }
+    }
+
+    // Learned pieces due for review today or before, most overdue first.
+    function dueForReview(today) {
+      return Object.entries(data.pieces)
+        .filter(([, p]) => p.review && p.review.due <= today)
+        .map(([key, p]) => ({ key, title: p.title, due: p.review.due, level: p.review.level }))
+        .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
     }
 
     // The bars with the most trouble per time played, worst first.
@@ -79,7 +103,7 @@
     }
 
     return {
-      addTime, addRun, weakBars, days, streak, flush,
+      addTime, addRun, weakBars, days, streak, flush, dueForReview,
       piece: (key) => data.pieces[key] || null,
       today: (day) => data.days[day] || 0,
       all: () => JSON.parse(JSON.stringify(data)),
@@ -88,6 +112,7 @@
   }
 
   function dayKey(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function addDays(day, n) { const d = parseDay(day); return dayKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); }
   function parseDay(s) { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, m - 1, d); }
 
   // Per-bar counts for a run, from the engine's results and the song.
@@ -103,5 +128,5 @@
   }
 
   window.Piano = window.Piano || {};
-  window.Piano.progress = { create, dayKey, barsOf, GOOD };
+  window.Piano.progress = { create, dayKey, addDays, barsOf, GOOD, INTERVALS };
 })();

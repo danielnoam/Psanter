@@ -213,6 +213,18 @@
         target = { ...target, opts: { ...(target.opts || {}), tracks: list } };
         swap(P.midifile.parse(target.data, target.title, list));
       },
+      // Loops bars `from` to `to` (measure numbers in the score) and goes
+      // to the start of them.
+      loopMeasures(from, to) {
+        if (!song) return;
+        const a = song.steps.find((s) => s.measure >= from), z = [...song.steps].reverse().find((s) => s.measure <= to);
+        if (!a || !z) return;
+        const b0 = barIndex(a.ms), b1 = barIndex(z.ms);
+        engine.setLoop({ on: true, from: song.bars[b0], to: song.bars[b1 + 1] != null ? Math.min(song.end, song.bars[b1 + 1]) : song.end });
+        engine.seek(song.bars[b0]);
+        score.clearMarks(); engine.results.clear();
+        handle(engine.drain()); changed();
+      },
       // Loops one bar (by its measure number in the score).
       loopMeasure(m) {
         if (!song) return;

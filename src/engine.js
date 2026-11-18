@@ -131,7 +131,8 @@
         credited.add(midi);
         const offset = waiting ? Math.round(Math.max(0, now - waitSince - latency) * speed) : Math.round(Math.max(heard - s.ms, mode === "wait" ? 0 : -Infinity));
         pass.offsets.push(offset); total.offsets.push(offset);
-        emit({ type: "hit", midi, step: req, offset });
+        const want = s.notes.find((n) => n.midi === midi && hands[n.hand] === "me");
+        emit({ type: "hit", midi, step: req, offset, vel, want: want ? want.vel : null, mode, ms: s.ms });
         if (need.every((m) => credited.has(m))) stepDone(now);
         return;
       }

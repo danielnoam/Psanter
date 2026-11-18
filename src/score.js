@@ -155,6 +155,14 @@
       }
       if (!marks.length || marks[0].at > 0) marks.unshift({ at: 0, bpm: sheet.DefaultStartTempoInBpm || 100 });
       const toMs = tempoMap(marks);
+      // Dynamics (p, mf, f…): OSMD gives each a volume from 0 to 1.
+      const dyn = [];
+      for (const m of sheet.SourceMeasures) for (const list of m.StaffLinkedExpressions || []) for (const me of list || []) {
+        const d = me.instantaneousDynamic || me.InstantaneousDynamic;
+        if (d && d.Volume > 0 && me.AbsoluteTimestamp) dyn.push({ at: me.AbsoluteTimestamp.RealValue, vel: Math.round(Math.min(1, d.Volume) * 127) });
+      }
+      dyn.sort((a, b) => a.at - b.at);
+      const velAt = (at) => { let v = 80; for (const d of dyn) { if (d.at <= at + 1e-9) v = d.vel; else break; } return v; };
       const sig = sheet.SourceMeasures[0] && sheet.SourceMeasures[0].ActiveTimeSignature;
       const staves = sheet.Staves.length;
       positions = [];
@@ -173,7 +181,7 @@
             const staff = n.ParentStaff ? n.ParentStaff.idInMusicSheet : 0;
             const finger = n.Fingering && n.Fingering.value ? n.Fingering.value : null;
             here.push({ midi: n.halfTone + 12, ms, dur: toMs(at + (tie && tie.StartNote === n ? tie.Duration.RealValue : n.Length.RealValue)) - ms,
-              hand: staves > 1 ? (staff === 0 ? "right" : "left") : "right", tied: !!(tie && tie.StartNote !== n), finger,
+              hand: staves > 1 ? (staff === 0 ? "right" : "left") : "right", tied: !!(tie && tie.StartNote !== n), finger, vel: velAt(at),
               measure: it.CurrentMeasureIndex });
           }
         }
