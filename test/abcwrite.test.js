@@ -63,4 +63,50 @@ test("five-finger drills stay in five notes", () => {
   assert.deepStrictEqual(abcwrite.scale("C", "five", "left"), [48, 50, 52, 53, 55]);
 });
 
+const ALL = [...abcwrite.KEYS, ...abcwrite.MINORS];
+test("scales and chords fill their bars in every key, for every hand", () => {
+  for (const key of ALL) for (const hand of ["right", "left", "both"]) {
+    for (const octaves of [1, 2]) for (const line of abcwrite.scaleExercise({ key, hand, octaves }).split("\n").filter((l) => / \|\]$/.test(l)))
+      assert.ok(bars(line.replace(/!\d!/g, "")).every((b) => b === 8), key + " " + hand + " " + octaves + ": " + line);
+    for (const line of abcwrite.chordExercise({ key, hand }).split("\n").filter((l) => / \|\]$/.test(l)))
+      assert.deepStrictEqual(bars(line), [8, 8, 8, 8], key + " " + hand + ": " + line);
+  }
+});
+
+test("a scale's fingering ends on 5 at the top and 1 at the bottom (right hand)", () => {
+  const line = abcwrite.scaleExercise({ key: "G", octaves: 2 }).trim().split("\n").pop();
+  const f = [...line.matchAll(/!(\d)!/g)].map((m) => +m[1]);
+  assert.strictEqual(f.length, 29);
+  assert.strictEqual(f[14], 5);
+  assert.deepStrictEqual(f.slice(0, 8), [1, 2, 3, 1, 2, 3, 4, 1]);
+  assert.strictEqual(f[28], 1);
+  assert.ok(!/!\d!/.test(abcwrite.scaleExercise({ key: "Db" })), "no fingering where the usual one doesn't fit");
+});
+
+test("harmonic minor raises the seventh, spelled on its own letter", () => {
+  assert.ok(/\^g/i.test(abcwrite.scaleExercise({ key: "Am" })));
+  assert.ok(/\^c/.test(abcwrite.scaleExercise({ key: "Dm" })), "C sharp in D minor, not D flat");
+  assert.ok(/\^\^f/.test(abcwrite.scaleExercise({ key: "G#m" })), "F double sharp in G sharp minor");
+});
+
+test("rhythm drills are one note, full bars, the same for the same seed", () => {
+  for (const rhythm of ["quarters", "mixed"]) {
+    const a = abcwrite.rhythmExercise({ rhythm, bars: 8, seed: 5 });
+    assert.strictEqual(a, abcwrite.rhythmExercise({ rhythm, bars: 8, seed: 5 }));
+    const line = a.trim().split("\n").pop();
+    assert.ok(bars(line).every((b) => b === 8), line);
+    assert.ok(!/[A-AC-Ga-g]/.test(line.replace(/z/g, "")), "only B: " + line);
+  }
+});
+
+test("an ear tune starts on the tonic and keeps to its range", () => {
+  for (let seed = 1; seed < 40; seed++) {
+    const p = abcwrite.earPhrase({ key: "D", count: 5, range: "five", seed });
+    assert.strictEqual(p.midis.length, 5);
+    assert.strictEqual(p.midis[0], 62);
+    assert.ok(p.midis.every((m) => m >= 62 && m <= 69), p.midis.join(" "));
+    for (let i = 1; i < 5; i++) assert.notStrictEqual(p.midis[i], p.midis[i - 1]);
+  }
+});
+
 console.log(passed + " passed");

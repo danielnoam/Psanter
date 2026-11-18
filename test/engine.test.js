@@ -186,4 +186,18 @@ test("flow mode still counts a note far too early as wrong", () => {
   assert.strictEqual(types(e.drain(), "wrong").length, 1);
 });
 
+test("latency: a note that arrives late by the set delay is on time", () => {
+  const e = engine.create(); e.load(scale()); e.setMode("flow"); e.setHands({ left: "off" }); e.setLatency(200);
+  e.play(0); run(e, 0, 1180);
+  e.noteOn(62, 1190);
+  const ev = e.drain();
+  const hit = types(ev, "hit")[0];
+  assert.ok(hit, "D counts");
+  assert.ok(Math.abs(hit.offset) < 40, "offset within a frame or two of zero, got " + hit.offset);
+  const e2 = engine.create(); e2.load(scale()); e2.setMode("flow"); e2.setHands({ left: "off" }); e2.setLatency(200);
+  e2.noteOn(60, 0); e2.drain();
+  const misses = types(run(e2, 0, 1400), "miss");
+  assert.strictEqual(misses.length, 0, "D isn't missed yet: its window moves by the delay");
+});
+
 console.log(passed + " passed");

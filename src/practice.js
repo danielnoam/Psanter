@@ -42,8 +42,8 @@
       else score = P.score.none(scoreEl, t.message || "");
       let s;
       if (t.kind === "free") { await score.load(); s = null; }
-      else if (t.kind === "midi") { await score.load(); s = P.midifile.parse(t.data, t.title); }
-      else s = await score.load(t.data, { title: t.title });
+      else if (t.kind === "midi") { await score.load(); s = P.midifile.parse(t.data, t.title, t.opts && t.opts.tracks); }
+      else s = await score.load(t.data, { title: t.title, transpose: t.kind === "abc" ? (t.opts && +t.opts.transpose) || 0 : 0 });
       if (t.kind !== "free" && (!s || !s.notes.length)) throw new Error("no notes to play in this piece");
       target = t; base = s; semis = (t.opts && +t.opts.transpose) || 0;
       song = s && semis ? P.music.transpose(s, semis) : s;
@@ -203,17 +203,15 @@
       transpose(n) {
         if (!base) return;
         semis = Math.max(-12, Math.min(12, Math.round(n)));
-        const keep = { t: engine.time, loop: engine.loop, hands: engine.hands, speed: engine.speed, mode: engine.mode, metronome: engine.metronome, countIn: engine.countIn };
-        engine.pause(); stopSound();
-        song = semis ? P.music.transpose(base, semis) : base;
-        engine.load(song);
-        engine.setHands(keep.hands); engine.setMode(keep.mode); engine.setSpeed(keep.speed);
-        engine.setMetronome(keep.metronome); engine.setCountIn(keep.countIn);
-        if (keep.loop.on) engine.setLoop(keep.loop);
-        engine.seek(keep.t);
-        roll.setSong(song); timeline.setSong(song);
-        score.clearMarks(); lastResult = null;
-        handle(engine.drain()); changed();
+        // ABC can redraw in the new key; MusicXML keeps the written one.
+        if (target.kind === "abc") score.load(target.data, { title: target.title, transpose: semis }).then(() => swap(base));
+        else swap(base);
+      },
+      // A MIDI file's tracks: each "right", "left", "split" or "off".
+      trackHands(list) {
+        if (!target || target.kind !== "midi") return;
+        target = { ...target, opts: { ...(target.opts || {}), tracks: list } };
+        swap(P.midifile.parse(target.data, target.title, list));
       },
       // Loops one bar (by its measure number in the score).
       loopMeasure(m) {
@@ -226,6 +224,21 @@
         handle(engine.drain()); changed();
       },
     };
+    // A new version of the same piece, keeping where you are and how it's set.
+    function swap(next) {
+      const keep = { t: engine.time, loop: engine.loop, hands: engine.hands, speed: engine.speed, mode: engine.mode, metronome: engine.metronome, countIn: engine.countIn };
+      engine.pause(); stopSound();
+      base = next;
+      song = semis ? P.music.transpose(base, semis) : base;
+      engine.load(song);
+      engine.setHands(keep.hands); engine.setMode(keep.mode); engine.setSpeed(keep.speed);
+      engine.setMetronome(keep.metronome); engine.setCountIn(keep.countIn);
+      if (keep.loop.on) engine.setLoop(keep.loop);
+      engine.seek(Math.min(keep.t, song.end));
+      roll.setSong(song); timeline.setSong(song);
+      score.clearMarks(); lastResult = null;
+      handle(engine.drain()); changed();
+    }
     function barIndex(ms) { let b = 0; for (let i = 0; i < song.bars.length; i++) if (song.bars[i] <= ms + 0.5) b = i; return b; }
 
     function setEffects(f) { fx = f; roll.setEffects(f); dirty = true; kick(); }

@@ -90,7 +90,11 @@
   function transpose(s, semis) {
     if (!semis) return s;
     const notes = s.notes.map((n) => ({ ...n, midi: Math.min(127, Math.max(0, n.midi + semis)) }));
-    return song({ notes, title: s.title, tempo: s.tempo, beatsPerBar: s.beatsPerBar, beatUnit: s.beatUnit, measures: s.measures, refs: s.steps.map((x) => x.ref) });
+    const out = song({ notes, title: s.title, tempo: s.tempo, beatsPerBar: s.beatsPerBar, beatUnit: s.beatUnit, measures: s.measures, refs: s.steps.map((x) => x.ref) });
+    // Same timing, same steps: keep the score's bar numbers and the tracks.
+    out.steps.forEach((x, i) => { if (s.steps[i]) x.measure = s.steps[i].measure; });
+    if (s.tracks) out.tracks = s.tracks;
+    return out;
   }
 
   window.Piano = window.Piano || {};

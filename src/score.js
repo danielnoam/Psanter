@@ -37,7 +37,7 @@
   }
 
   function abc(container, onClick) {
-    let vo = null, events = [], refs = [], current = -1;
+    let vo = null, events = [], refs = [], current = -1, stepMeasures = [];
     const marked = new Map();
 
     async function load(text, opts = {}) {
@@ -47,7 +47,7 @@
       container.appendChild(holder);
       const color = cssVar("--score-ink", "#1E1F1C");
       vo = window.ABCJS.renderAbc(holder, text, {
-        add_classes: true, responsive: "resize", foregroundColor: color, selectionColor: cssVar("--accent", "#2F5D50"),
+        add_classes: true, responsive: "resize", visualTranspose: opts.transpose || 0, foregroundColor: color, selectionColor: cssVar("--accent", "#2F5D50"),
         paddingtop: 8, paddingbottom: 8, paddingleft: 8, paddingright: 8, staffwidth: Math.max(320, container.clientWidth - 40),
         clickListener: (el, tuneNumber, classes, analysis, drag, mouseEvent) => {
           if (!onClick) return;
@@ -91,6 +91,7 @@
         return best;
       });
       song.steps.forEach((s, i) => { s.ref = refs[i]; s.measure = best(events[refs[i]]); });
+      stepMeasures = song.steps.map((s) => s.measure);
       current = -1; marked.clear();
       return song;
     }
@@ -117,11 +118,13 @@
     }
     function clearMarks() { for (const s of [...marked.keys()]) mark(s, null); }
 
-    return { kind: "abc", load, show, mark, clearMarks, resize() {}, destroy() { container.replaceChildren(); } };
+    function trouble(measures) { bands(container, measures, stepMeasures, els); }
+
+    return { kind: "abc", load, show, mark, clearMarks, trouble, resize() {}, destroy() { container.replaceChildren(); } };
   }
 
   function musicxml(container, onClick) {
-    let osmd = null, positions = [], refs = [], cur = 0, current = -1, resizeTimer = 0, lastWidth = 0;
+    let osmd = null, positions = [], refs = [], cur = 0, current = -1, resizeTimer = 0, lastWidth = 0, stepMeasures = [], troubled = [];
     const marked = new Map();
 
     async function load(data, opts = {}) {
@@ -140,8 +143,18 @@
       lastWidth = container.clientWidth;
       osmd.cursor.show();
       const sheet = osmd.Sheet;
-      const bpm = sheet.DefaultStartTempoInBpm || sheet.userStartTempoInBPM || 100;
-      const wholeMs = 4 * 60000 / bpm;
+      // The tempo map, one entry per measure where the tempo changes, in
+      // whole notes from the start (OSMD's timestamps) and bpm in quarters.
+      const marks = [];
+      for (const m of sheet.SourceMeasures) {
+        const at = m.AbsoluteTimestamp ? m.AbsoluteTimestamp.RealValue : 0;
+        const bpm = m.TempoInBPM || (marks.length ? marks[marks.length - 1].bpm : sheet.DefaultStartTempoInBpm || 100);
+        const lastMark = marks[marks.length - 1];
+        if (lastMark && Math.abs(lastMark.at - at) < 1e-9) lastMark.bpm = bpm;
+        else if (!lastMark || Math.abs(lastMark.bpm - bpm) > 0.01) marks.push({ at, bpm });
+      }
+      if (!marks.length || marks[0].at > 0) marks.unshift({ at: 0, bpm: sheet.DefaultStartTempoInBpm || 100 });
+      const toMs = tempoMap(marks);
       const sig = sheet.SourceMeasures[0] && sheet.SourceMeasures[0].ActiveTimeSignature;
       const staves = sheet.Staves.length;
       positions = [];
@@ -150,7 +163,8 @@
       const it = osmd.cursor.Iterator;
       let guard = 0;
       while (!it.EndReached && guard++ < 20000) {
-        const ms = it.currentTimeStamp.RealValue * wholeMs;
+        const at = it.currentTimeStamp.RealValue;
+        const ms = toMs(at);
         const here = [];
         for (const ve of it.CurrentVoiceEntries) {
           for (const n of ve.Notes) {
@@ -158,7 +172,7 @@
             const tie = n.NoteTie;
             const staff = n.ParentStaff ? n.ParentStaff.idInMusicSheet : 0;
             const finger = n.Fingering && n.Fingering.value ? n.Fingering.value : null;
-            here.push({ midi: n.halfTone + 12, ms, dur: (tie && tie.StartNote === n ? tie.Duration.RealValue : n.Length.RealValue) * wholeMs,
+            here.push({ midi: n.halfTone + 12, ms, dur: toMs(at + (tie && tie.StartNote === n ? tie.Duration.RealValue : n.Length.RealValue)) - ms,
               hand: staves > 1 ? (staff === 0 ? "right" : "left") : "right", tied: !!(tie && tie.StartNote !== n), finger,
               measure: it.CurrentMeasureIndex });
           }
@@ -168,10 +182,11 @@
         osmd.cursor.next();
       }
       osmd.cursor.reset(); cur = 0;
-      const song = M().song({ notes, title: opts.title || (sheet.TitleString || ""), tempo: [{ ms: 0, bpm }],
+      const song = M().song({ notes, title: opts.title || (sheet.TitleString || ""), tempo: marks.map((k) => ({ ms: toMs(k.at), bpm: k.bpm })),
         beatsPerBar: sig ? sig.Numerator : 4, beatUnit: sig ? sig.Denominator : 4, measures: sheet.SourceMeasures.length });
       refs = song.steps.map((s) => positions.findIndex((p) => Math.abs(p.ms - s.ms) < 1));
       song.steps.forEach((s, i) => { s.ref = refs[i]; s.measure = positions[refs[i]] ? positions[refs[i]].measure : s.measure; });
+      stepMeasures = song.steps.map((s) => s.measure);
       current = -1; marked.clear();
       return song;
     }
@@ -217,6 +232,7 @@
         osmd.cursor.reset(); cur = 0;
         const at = current; current = -2; show(at);
         for (const [s, r] of keep) mark(s, r);
+        trouble(troubled);
       }, 200);
     }
 
@@ -228,14 +244,63 @@
       if (pos >= 0) onClick(positions[pos].ms);
     });
 
-    return { kind: "musicxml", load, show, mark, clearMarks, resize, destroy() { clearTimeout(resizeTimer); container.replaceChildren(); } };
+    const xmlEls = (step) => (positions[refs[step]] ? positions[refs[step]].g : []);
+    function trouble(measures) { troubled = measures || []; bands(container, troubled, stepMeasures, xmlEls); }
+
+    return { kind: "musicxml", load, show, mark, clearMarks, trouble, resize, destroy() { clearTimeout(resizeTimer); container.replaceChildren(); } };
+  }
+
+  // A soft band behind each bar that trips you up, around its notes.
+  function bands(container, measures, stepMeasures, elsOf) {
+    const want = new Set(measures || []);
+    const sig = [...want].sort((a, b) => a - b).join(",");
+    const drawn = container.querySelectorAll(".trouble-band");
+    if (container.dataset.trouble === sig && (drawn.length || !want.size)) return;
+    container.dataset.trouble = sig;
+    for (const r of drawn) r.remove();
+    if (!want.size) return;
+    const groups = new Map();
+    stepMeasures.forEach((m, i) => { if (want.has(m)) { if (!groups.has(m)) groups.set(m, []); groups.get(m).push(...elsOf(i)); } });
+    for (const list of groups.values()) {
+      const svg = list[0] && list[0].ownerSVGElement;
+      if (!svg || !svg.getScreenCTM()) continue;
+      const inv = svg.getScreenCTM().inverse();
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const e of list) {
+        if (e.ownerSVGElement !== svg) continue;
+        const b = e.getBoundingClientRect();
+        if (!b.width && !b.height) continue;
+        for (const [x, y] of [[b.left, b.top], [b.right, b.bottom]]) {
+          const p = new DOMPoint(x, y).matrixTransform(inv);
+          x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
+        }
+      }
+      if (!isFinite(x0)) continue;
+      const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      r.setAttribute("class", "trouble-band");
+      r.setAttribute("x", x0 - 8); r.setAttribute("y", y0 - 8);
+      r.setAttribute("width", x1 - x0 + 16); r.setAttribute("height", y1 - y0 + 16);
+      r.setAttribute("rx", 6);
+      svg.insertBefore(r, svg.firstChild);
+    }
   }
 
   function none(container, message) {
     return {
       kind: "none",
       async load() { const p = document.createElement("p"); p.className = "score-none"; p.textContent = message; container.replaceChildren(p); return null; },
-      show() {}, mark() {}, clearMarks() {}, resize() {}, destroy() { container.replaceChildren(); },
+      show() {}, mark() {}, clearMarks() {}, trouble() {}, resize() {}, destroy() { container.replaceChildren(); },
+    };
+  }
+
+  // Whole notes from the start → ms, through tempo changes.
+  function tempoMap(marks) {
+    const starts = [0];
+    for (let i = 1; i < marks.length; i++) starts.push(starts[i - 1] + (marks[i].at - marks[i - 1].at) * 240000 / marks[i - 1].bpm);
+    return (at) => {
+      let i = 0;
+      while (i + 1 < marks.length && marks[i + 1].at <= at + 1e-9) i++;
+      return starts[i] + (at - marks[i].at) * 240000 / marks[i].bpm;
     };
   }
 
@@ -248,5 +313,5 @@
   }
 
   window.Piano = window.Piano || {};
-  window.Piano.score = { abc, musicxml, none, abcHands };
+  window.Piano.score = { abc, musicxml, none, abcHands, tempoMap };
 })();

@@ -5,7 +5,7 @@
 // right. Otherwise, with two note tracks the first is the right hand and
 // the second the left; with one, notes below middle C go to the left hand.
 (function () {
-  function parse(bytes, title = "") {
+  function parse(bytes, title = "", choice = null) {
     const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     let p = 0;
     const u32 = () => { const v = (b[p] << 24 | b[p + 1] << 16 | b[p + 2] << 8 | b[p + 3]) >>> 0; p += 4; return v; };
@@ -61,19 +61,26 @@
       const kept = notes.filter((n) => n.ch !== 9);
       if (kept.length) noteTracks.push({ name: tr.name, notes: kept });
     }
-    const hands = assignHands(noteTracks);
+    // Each track's hand: the one you chose (right, left, split by pitch,
+    // or off), else the guess.
+    const guess = assignHands(noteTracks);
+    const hands = noteTracks.map((_, i) => (choice && choice[i]) || guess[i] || "split");
     const notes = [];
     noteTracks.forEach((tr, i) => {
+      if (hands[i] === "off") return;
       for (const n of tr.notes) {
         const ms = toMs(n.tick);
         notes.push({ midi: n.midi, ms, dur: Math.max(20, toMs(n.endTick) - ms), vel: n.vel,
-          hand: hands[i] || (n.midi < 60 ? "left" : "right") });
+          hand: hands[i] === "split" ? (n.midi < 60 ? "left" : "right") : hands[i] });
       }
     });
+    if (!notes.length) throw new Error("every track is off");
     const tempo = tempos.length ? tempos.map((e) => ({ ms: toMs(e.tick), bpm: 60000000 / e.tempo })) : [{ ms: 0, bpm: 120 }];
     if (tempo[0].ms > 0) tempo.unshift({ ms: 0, bpm: 120 });
     const ts = sigs.length ? sigs.sort((a, c) => a.tick - c.tick)[0].ts : [4, 4];
-    return window.Piano.music.song({ notes, title, tempo, beatsPerBar: ts[0], beatUnit: ts[1] });
+    const song = window.Piano.music.song({ notes, title, tempo, beatsPerBar: ts[0], beatUnit: ts[1] });
+    song.tracks = noteTracks.map((tr, i) => ({ name: tr.name || "", notes: tr.notes.length, hand: hands[i], guessed: !(choice && choice[i]) }));
+    return song;
   }
 
   function msMapper(tempos, division) {

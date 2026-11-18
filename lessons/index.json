@@ -12,6 +12,37 @@
         "pieces/minuet-in-g.musicxml",
         "pieces/ode-to-joy.mid"
       ]
+    },
+    {
+      "id": "first-year",
+      "title": "A first year",
+      "files": [
+        "01-the-keyboard.md",
+        "02-steps-in-the-treble.md",
+        "03-skips.md",
+        "04-the-bass-clef.md",
+        "05-middle-c-position.md",
+        "06-g-position.md",
+        "07-sharps-flats-naturals.md",
+        "08-note-lengths.md",
+        "09-rests.md",
+        "10-eighth-notes.md",
+        "11-dotted-notes.md",
+        "12-ties.md",
+        "13-g-major-scale.md",
+        "14-d-and-a-major.md",
+        "15-f-major.md",
+        "16-minor-scales.md",
+        "17-contrary-motion.md",
+        "18-every-key.md",
+        "19-triads.md",
+        "20-broken-chords.md",
+        "21-inversions.md",
+        "22-i-iv-v-i.md",
+        "23-melody-and-chords.md",
+        "24-minor-chords.md",
+        "25-jingle-bells.md"
+      ]
     }
   ]
 }

@@ -17,8 +17,8 @@
   const DEFAULTS = { theme: "system", mode: "wait", metronome: false, countIn: false, echo: false, typing: true,
     lookahead: 3, range: "song", volume: 0.7, autoVolume: 0.8, room: 0.16, output: "", layout: null, last: null,
     noteNames: "off", fingers: true, autoSpeed: false, autoSpeedGoal: 100, colors: { light: {}, dark: {} },
-    keys: {}, pianoKeys: {}, bookPages: {}, effects: null, lightChannel: -1, goal: 15,
-    drill: { hand: "right", range: "five", key: "C", rhythm: "quarters", bars: 4, tempo: 70, next: true } };
+    keys: {}, pianoKeys: {}, bookPages: {}, effects: null, lightChannel: -1, goal: 15, latency: 0, midiHands: {}, sound: "grand",
+    drill: { type: "reading", hand: "right", range: "five", key: "C", rhythm: "quarters", bars: 4, tempo: 70, next: true, octaves: 1, count: 4, earRange: "five" } };
   const settings = (() => {
     let data = { ...DEFAULTS };
     try { data = { ...data, ...JSON.parse(localStorage.getItem("piano.settings") || "{}") }; } catch (e) { /* first run or blocked storage */ }
@@ -65,10 +65,11 @@
   const synth = P.synth.create();
   synth.setVolume(settings.get("volume"));
   synth.setRoom(settings.get("room"));
+  synth.setSound(settings.get("sound"));
   let practice = null;
   const recorder = P.recorder.create();
   const hot = P.hotkeys.create(settings.get("keys"), settings.get("pianoKeys"));
-  let captureNote = null, lastNoteAt = -Infinity;
+  let captureNote = null, lastNoteAt = -Infinity, calibrating = false;
 
   // Every note you play comes through here: a piano key bound to a
   // shortcut runs it, the rest is recorded and practised.
@@ -78,6 +79,9 @@
     if (action) { if (on) runAction(action); return; }
     recorder.note(m, on, vel, now);
     lastNoteAt = now;
+    if (on && ear) earNote(m);
+    // A rhythm drill takes any key as its one note.
+    if (lessonState && lessonState.drill && drillType() === "rhythm" && practice && practice.song) m = P.abcwrite.TAP;
     if (editor && editor.wantsNotes && editorShown()) {
       editor.note(m, on);
       if (source !== "midi" || settings.get("echo")) { if (on) synth.noteOn(m, vel); else synth.noteOff(m); }
@@ -90,7 +94,7 @@
   const midi = P.midi.create({ onNote: routeNote, onDevices: () => renderDevice(), onPedal: pedal });
   const typing = P.midi.typing({
     onNote: routeNote,
-    enabled: () => settings.get("typing") && !$("settings").open && !themeOpen(),
+    enabled: () => settings.get("typing") && (calibrating || (!$("settings").open && !themeOpen())),
   });
 
   function renderDevice() {
@@ -115,6 +119,8 @@
 
   async function showLibrary() {
     if (practice) { practice.engine.pause(); practice.stopSound(); }
+    if (routine) endRoutine(false);
+    ear = null;
     stopWatching();
     $("lesson-screen").hidden = true;
     $("library").hidden = false;
@@ -162,6 +168,7 @@
     }
 
     inner.appendChild(daysCard());
+    inner.appendChild(routineCard());
     inner.appendChild(drillCard());
     for (const c of courses) inner.appendChild(courseCard(c));
     if (!library.canPick()) inner.appendChild(el("p", "dim", t("This browser can't keep folders between visits; use the desktop app for that.")));
@@ -267,6 +274,7 @@
     });
     fx = P.effects.create();
     applyEffects();
+    practice.engine.setLatency(settings.get("latency"));
     practice.roll.setRange(settings.get("range"));
     applyLabels();
     buildTransport(timelineCanvas);
@@ -474,7 +482,8 @@
         pc.modified = r.modified;
         let data = r.data;
         if (kind === "mxl") data = binaryString(r.data);
-        target = { kind, data, opts: pc.opts, title: pc.title, message: t("A MIDI file has no sheet music: the falling notes show the piece."), source: { piece: which.piece } };
+        const tracks = kind === "midi" ? (settings.get("midiHands") || {})[lessonState.course + "|" + pc.path] : null;
+        target = { kind, data, opts: tracks ? { ...pc.opts, tracks } : pc.opts, title: pc.title, message: t("A MIDI file has no sheet music: the falling notes show the piece."), source: { piece: which.piece } };
       }
       lessonState.active = which;
       markActive();
@@ -483,10 +492,38 @@
       const s = practice.state();
       $("status").textContent = "";
       if (s.song) $("status").textContent = t("{n} bars", { n: s.song.measures });
+      if (target.kind === "midi") renderTracks(lessonState.course + "|" + lessonState.pieces[which.piece].path);
     } catch (e) {
       toast(t("Couldn't load that music: {why}", { why: e.message || String(e) }));
       K.errlog && K.errlog.note && K.errlog.note("load", String(e && e.stack || e));
     }
+  }
+
+  // A MIDI file's tracks, each played by a hand, split by pitch, or left out.
+  function renderTracks(key) {
+    const song = practice.song;
+    if (!song || !song.tracks || !song.tracks.length) return;
+    const box = el("div", "tracks");
+    box.appendChild(el("h3", null, t("Tracks")));
+    const choice = () => song.tracks.map((tr) => tr.hand);
+    song.tracks.forEach((tr, i) => {
+      const row = el("div", "track-row");
+      row.appendChild(el("span", "track-name", tr.name || t("Track {n}", { n: i + 1 })));
+      row.appendChild(el("span", "dim", t("{n} notes", { n: tr.notes })));
+      const pick = seg([["right", t("Right")], ["left", t("Left")], ["split", t("Split")], ["off", t("Off")]], (v) => {
+        const list = choice(); list[i] = v;
+        if (list.every((h) => h === "off")) { toast(t("Keep at least one track on.")); setSeg(pick, tr.hand); return; }
+        const all = { ...(settings.get("midiHands") || {}) }; all[key] = list; settings.set("midiHands", all);
+        practice.act.trackHands(list);
+        renderTracks(key);
+      });
+      setSeg(pick, tr.hand);
+      row.appendChild(pick);
+      box.appendChild(row);
+    });
+    box.appendChild(el("p", "dim", t("Split sends notes below middle C to the left hand.")));
+    const old = mounts.score.querySelector(".tracks");
+    if (old) old.replaceWith(box); else mounts.score.appendChild(box);
   }
 
   function binaryString(bytes) {
@@ -710,6 +747,12 @@
     lightSel.value = String(settings.get("lightChannel"));
     lightSel.addEventListener("change", () => { midi.light([], settings.get("lightChannel")); settings.set("lightChannel", +lightSel.value); });
     piano.appendChild(field(t("Light the next notes on a keyboard with lit keys (its lighting channel)"), lightSel));
+    const lat = range(0, 300, 5, settings.get("latency"), (v) => { settings.set("latency", v); practice && practice.engine.setLatency(v); }, (v) => t("{n} ms", { n: v }));
+    const cal = el("div", "row");
+    const calNote = el("p", "dim", t("If your notes count as late when they sound on time, measure the delay: tap any key on the piano with each click."));
+    cal.appendChild(button(t("Measure"), "btn", () => calibrate(calNote, lat)));
+    piano.appendChild(field(t("Delay between hearing a note and the app getting yours"), lat));
+    piano.append(calNote, cal);
     body.appendChild(piano);
 
     const prac = section(t("Practice"));
@@ -733,6 +776,12 @@
     body.appendChild(prac);
 
     const sound = section(t("Sound"));
+    const kindSel = document.createElement("select");
+    kindSel.append(new Option(t("Grand piano (recorded)"), "grand"), new Option(t("Simple (made by the app)"), "simple"));
+    kindSel.value = settings.get("sound");
+    kindSel.addEventListener("change", () => { settings.set("sound", kindSel.value); synth.setSound(kindSel.value); });
+    sound.appendChild(field(t("Piano sound"), kindSel));
+    sound.appendChild(el("p", "dim", t("The grand piano is the Salamander Grand Piano by Alexander Holm (CC-BY 3.0).")));
     sound.appendChild(field(t("Volume"), range(0, 1, 0.05, settings.get("volume"), (v) => { settings.set("volume", v); synth.setVolume(v); }, (v) => Math.round(v * 100) + "%")));
     sound.appendChild(field(t("Room"), range(0, 0.5, 0.02, settings.get("room"), (v) => { settings.set("room", v); synth.setRoom(v); }, (v) => Math.round(v * 200) + "%")));
     body.appendChild(sound);
@@ -778,6 +827,35 @@
     dlg.replaceChildren(head, body);
   }
 
+  // Tap along with 8 clicks; the middle of your offsets is the delay.
+  function calibrate(note, slider) {
+    if (calibrating) return;
+    synth.unlock();
+    calibrating = true;
+    const GAP = 600, LEAD = 2, COUNT = 8;
+    const clicks = [], taps = [];
+    note.textContent = t("Listen to two clicks, then tap with the next eight.");
+    for (let i = 0; i < LEAD + COUNT; i++) {
+      setTimeout(() => { synth.click(i < LEAD); if (i >= LEAD) clicks.push(performance.now()); }, 300 + i * GAP);
+    }
+    captureNote = () => { taps.push(performance.now()); };
+    setTimeout(() => {
+      calibrating = false; captureNote = null;
+      const offs = [];
+      for (const c of clicks) {
+        const near = taps.map((x) => x - c).filter((d) => d > -150 && d < 300);
+        if (near.length) offs.push(near.reduce((a, b) => (Math.abs(a) < Math.abs(b) ? a : b)));
+      }
+      if (offs.length < 5) { note.textContent = t("Not enough taps heard ({n} of 8). Try again, tapping with each click.", { n: offs.length }); return; }
+      offs.sort((a, b) => a - b);
+      const ms = Math.max(0, Math.min(300, Math.round(offs[offs.length >> 1] / 5) * 5));
+      settings.set("latency", ms);
+      if (practice) practice.engine.setLatency(ms);
+      const input = slider.querySelector("input"); if (input) { input.value = String(ms); input.dispatchEvent(new Event("input")); }
+      note.textContent = t("Measured {n} ms. Notes are now judged that much earlier.", { n: ms });
+    }, 300 + (LEAD + COUNT) * GAP + 400);
+  }
+
   function section(title) { const s = document.createElement("section"); s.appendChild(el("h3", null, title)); return s; }
   function field(label, control) { const f = el("label", "field"); f.append(el("span", null, label), control); return f; }
   function check(label, key) {
@@ -817,7 +895,7 @@
   function pieceTitle() {
     const tg = practice && practice.target;
     if (!tg) return "";
-    if (tg.source && tg.source.drill) return t("Sight-reading") + " · " + tg.source.label;
+    if (tg.source && tg.source.drill) return tg.source.label;
     if (tg.source && tg.source.block != null) return (tg.title || t("Exercise {n}", { n: tg.source.block + 1 })) + " · " + ($("title").textContent || "");
     return tg.title || "";
   }
@@ -834,7 +912,7 @@
     const key = pieceKey();
     if (key) { progress.addRun(key, pieceTitle(), run, today()); progress.flush(); }
     statsSoon();
-    if (e.type === "end" && lessonState && lessonState.drill && settings.get("drill").next) setTimeout(() => { if (lessonState && lessonState.drill && !practice.engine.playing) newDrill(); }, 1800);
+    if (e.type === "end" && lessonState && lessonState.drill && drillSettings().next) setTimeout(() => { if (lessonState && lessonState.drill && !practice.engine.playing) newDrill(); }, 1800);
   }
 
   // A second of practice counts while the music moves or you've played in
@@ -894,6 +972,7 @@
         tiles2.append(tile(pc.best ? pct(pc.best.speed) : "—", t("best tempo")), tile(String(pc.runs), t("runs")), tile(String(pc.clean), t("clean")), tile(minutes(pc.seconds), t("practised")));
         piece.appendChild(tiles2);
         const weak = progress.weakBars(key, 3);
+        practice.score.trouble(weak.map((b) => b.measure));
         if (weak.length) {
           const w = el("div", "weak");
           w.appendChild(el("span", "dim", t("The bars that trip you up")));
@@ -1120,60 +1199,227 @@
     toast(midi.hasOutput ? t("Recording the falling notes. Notes sent to your piano aren't in the sound.") : t("Recording the falling notes and the app's sound. Press again to stop."), 4000);
   }
 
-  // ---- sight-reading drills ----
+  // ---- today's routine: a warm-up scale, a drill, then your piece ----
+  const FIFTHS = ["C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F"];
+  let routine = null, routineTimer = 0, drillOverride = null;
+  function drillSettings() { return drillOverride || settings.get("drill"); }
+  function routinePlan() {
+    const goal = settings.get("goal") || 15;
+    const now = new Date();
+    const day = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000);
+    const key = FIFTHS[((day % 12) + 12) % 12];
+    const last = settings.get("last");
+    const piece = last && courses.some((c) => c.id === last.course) ? last : null;
+    const split = piece ? [0.2, 0.3, 0.5] : [0.4, 0.6];
+    const steps = [
+      { name: t("Warm-up: {key} scale", { key: keyLabel(key) }), drill: { ...settings.get("drill"), type: "scale", key, hand: "both", octaves: 1, tempo: 80, next: false } },
+      { name: t("Sight-reading in {key}", { key: keyLabel(key) }), drill: { ...settings.get("drill"), type: "reading", key, next: true } },
+    ];
+    if (piece) steps.push({ name: piece.title || piece.path, piece });
+    steps.forEach((s, i) => { s.minutes = Math.max(1, Math.round(goal * split[i])); });
+    return { key, steps };
+  }
+  function routineCard() {
+    const plan = routinePlan();
+    const c = el("section", "course");
+    const head = el("div", "course-head");
+    head.append(el("h3", null, t("Today's practice")), button(t("Start"), "btn primary", () => startRoutine()));
+    c.append(head, el("p", "course-note", plan.steps.map((s) => s.name + " (" + t("{n} min", { n: s.minutes }) + ")").join(" · ")));
+    return c;
+  }
+  function startRoutine() { routine = { ...routinePlan(), at: -1 }; nextRoutineStep(); }
+  async function nextRoutineStep() {
+    if (!routine) return;
+    routine.at++;
+    const s = routine.steps[routine.at];
+    if (!s) { endRoutine(true); return; }
+    routine.since = Date.now(); routine.told = false;
+    drillOverride = s.drill ? { ...s.drill } : null;
+    if (s.drill) await openDrills();
+    else await openLesson(s.piece.course, s.piece.path);
+    renderRoutine();
+    clearInterval(routineTimer);
+    routineTimer = setInterval(renderRoutine, 1000);
+  }
+  function endRoutine(done) {
+    routine = null; drillOverride = null;
+    clearInterval(routineTimer); routineTimer = 0;
+    renderRoutine();
+    if (done) toast(t("That's today's practice done."));
+  }
+  function renderRoutine() {
+    const bar = $("routine");
+    if (!routine || $("lesson-screen").hidden) { bar.hidden = true; return; }
+    const s = routine.steps[routine.at];
+    const left = s.minutes * 60 - Math.floor((Date.now() - routine.since) / 1000);
+    const last = routine.at === routine.steps.length - 1;
+    if (left <= 0 && !routine.told) { routine.told = true; toast(last ? t("Time's up. Finish when you're ready.") : t("Time for the next step.")); }
+    const clock = left > 0 ? t("{m}:{s} left", { m: Math.floor(left / 60), s: String(left % 60).padStart(2, "0") }) : t("Time's up");
+    const text = el("span", "grow");
+    text.append(el("strong", null, t("Today, {n} of {all}", { n: routine.at + 1, all: routine.steps.length }) + " · "), document.createTextNode(s.name));
+    const next = button(last ? t("Finish") : t("Next step"), "btn" + (left <= 0 ? " primary" : ""), () => (last ? endRoutine(true) : nextRoutineStep()));
+    bar.replaceChildren(icon("target"), text, el("span", "dim", clock), next, iconButton("x", t("Stop today's practice"), () => endRoutine(false)));
+    bar.hidden = false;
+  }
+
+  // ---- drills: sight-reading, scales, chords, rhythm, ear ----
+  const DRILL_TYPES = [["reading", "Sight-reading"], ["scale", "Scales"], ["chords", "Chords"], ["rhythm", "Rhythm"], ["ear", "By ear"]];
+  let ear = null;
   function drillCard() {
     const c = el("section", "course");
     const head = el("div", "course-head");
-    head.append(el("h3", null, t("Sight-reading")), button(t("Start"), "btn primary", () => openDrills()));
-    c.append(head, el("p", "course-note", t("Short new music every time, made for the hands, keys and notes you pick.")));
+    head.append(el("h3", null, t("Drills")), button(t("Start"), "btn primary", () => openDrills()));
+    c.append(head, el("p", "course-note", t("Sight-reading, scales and chords in every key, rhythm and playing by ear. New music every time.")));
     return c;
   }
   async function openDrills() {
     lessonState = { course: null, path: null, meta: {}, blocks: [], pieces: [], active: null, drill: true };
     dropBook();
-    showLessonScreen(t("Sight-reading"));
+    showLessonScreen(t("Drills"));
     renderDrillForm();
     await newDrill();
   }
+  function drillType() { return drillSettings().type || "reading"; }
+  const keyLabel = (k) => (k === "any" ? t("Any key") : /m$/.test(k) ? k.slice(0, -1).replace("b", "♭") + " " + t("minor") : k.replace("b", "♭") + " " + t("major"));
   function renderDrillForm() {
-    const d = { ...settings.get("drill") };
-    const setD = (k, v) => { d[k] = v; settings.set("drill", { ...d }); };
+    const d = { ...drillSettings() };
+    const type = d.type || "reading";
+    // In today's routine the changes last for this step only.
+    const setD = (k, v) => { d[k] = v; if (drillOverride) drillOverride = { ...d }; else settings.set("drill", { ...d }); };
     const form = el("div", "drill-form");
-    const pickSeg = (k, options) => { const box = seg(options, (v) => { setD(k, v); setSeg(box, v); newDrill(); }); setSeg(box, String(d[k])); return box; };
+    const pickSeg = (k, options, redraw) => { const box = seg(options, (v) => { setD(k, v); setSeg(box, v); if (redraw) renderDrillForm(); newDrill(); }); setSeg(box, String(d[k] != null ? d[k] : options[0][0])); return box; };
     const keySel = document.createElement("select");
     keySel.setAttribute("aria-label", t("Key"));
-    for (const k of P.abcwrite.KEYS) keySel.appendChild(new Option(k.replace("b", "♭") + " " + t("major"), k));
-    keySel.value = d.key;
+    const keys = type === "reading" ? P.abcwrite.KEYS : type === "rhythm" ? [] : ["any", ...P.abcwrite.KEYS, ...P.abcwrite.MINORS];
+    for (const k of keys) keySel.appendChild(new Option(keyLabel(k), k));
+    keySel.value = keys.includes(d.key) ? d.key : keys[0] || "C";
     keySel.addEventListener("change", () => { setD("key", keySel.value); newDrill(); });
     const next = el("label", "check");
     const nextBox = document.createElement("input"); nextBox.type = "checkbox"; nextBox.checked = !!d.next;
     nextBox.addEventListener("change", () => setD("next", nextBox.checked));
     next.append(nextBox, el("span", null, t("A new one when you finish")));
-    form.append(
-      el("h1", null, t("Sight-reading")),
-      el("p", "dim", t("Read it once, then play it without stopping to fix notes. Wait mode lets you take your time; flow mode keeps the beat.")),
-      field(t("Hands"), pickSeg("hand", [["right", t("Right")], ["left", t("Left")], ["both", t("Both")]])),
-      field(t("Notes"), pickSeg("range", [["five", t("Five")], ["octave", t("An octave")], ["two", t("Two octaves")]])),
-      field(t("Key"), keySel),
-      field(t("Rhythm"), pickSeg("rhythm", [["quarters", t("Steady")], ["mixed", t("Mixed")]])),
-      field(t("Bars"), pickSeg("bars", [["4", "4"], ["8", "8"]])),
-      field(t("Tempo"), range(40, 140, 5, d.tempo, (v) => setD("tempo", v), (v) => t("{n} bpm", { n: v }))),
-      next,
-    );
-    const go = button(t("New drill"), "btn primary", () => newDrill());
+    const hands = field(t("Hands"), pickSeg("hand", [["right", t("Right")], ["left", t("Left")], ["both", t("Both")]]));
+    const tempo = field(t("Tempo"), range(40, 160, 5, d.tempo, (v) => setD("tempo", v), (v) => t("{n} bpm", { n: v })));
+    const intro = {
+      reading: t("Read it once, then play it without stopping to fix notes. Wait mode lets you take your time; flow mode keeps the beat."),
+      scale: t("Up and back down, with the usual fingering where the key has one. Minor scales are harmonic minor."),
+      chords: t("I, IV, V and I again, the right hand moving as little as it can over the roots in the left."),
+      rhythm: t("Just the rhythm: any key on the piano plays the note. The metronome keeps the beat, and timing counts."),
+      ear: t("The app plays the key's chord, then a short tune starting on the key's note. Play it back."),
+    }[type];
+    form.append(el("h1", null, t("Drills")), field(t("Drill"), pickSeg("type", DRILL_TYPES.map(([v, l]) => [v, t(l)]), true)), el("p", "dim", intro));
+    if (type === "reading") form.append(hands, field(t("Notes"), pickSeg("range", [["five", t("Five")], ["octave", t("An octave")], ["two", t("Two octaves")]])), field(t("Key"), keySel),
+      field(t("Rhythm"), pickSeg("rhythm", [["quarters", t("Steady")], ["mixed", t("Mixed")]])), field(t("Bars"), pickSeg("bars", [["4", "4"], ["8", "8"]])), tempo, next);
+    else if (type === "scale") form.append(hands, field(t("Octaves"), pickSeg("octaves", [["1", "1"], ["2", "2"]])), field(t("Key"), keySel), tempo, next);
+    else if (type === "chords") form.append(hands, field(t("Key"), keySel), tempo, next);
+    else if (type === "rhythm") form.append(field(t("Rhythm"), pickSeg("rhythm", [["quarters", t("Steady")], ["mixed", t("Mixed")]])), field(t("Bars"), pickSeg("bars", [["4", "4"], ["8", "8"]])), tempo, next);
+    else if (type === "ear") {
+      form.append(field(t("Key"), keySel), field(t("Notes"), pickSeg("count", [["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"]])), field(t("Range"), pickSeg("earRange", [["five", t("Five notes")], ["octave", t("An octave")]])));
+      const box = el("div", "ear-box"); box.id = "ear-box";
+      form.appendChild(box);
+    }
+    const go = button(t(type === "ear" ? "New tune" : "New drill"), "btn primary", () => newDrill());
     go.prepend(icon("refresh"));
     form.appendChild(go);
     mounts.lesson.replaceChildren(form);
+    if (type === "ear") renderEar();
   }
+  function pickKey(k, list) { return k === "any" || !list.includes(k) ? list[Math.floor(Math.random() * list.length)] : k; }
   async function newDrill() {
-    const d = settings.get("drill");
-    const text = P.abcwrite.drill({ ...d, bars: +d.bars || 4, seed: (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0 });
-    const label = d.key.replace("b", "♭") + ", " + t(d.range === "five" ? "five notes" : d.range === "octave" ? "an octave" : "two octaves") + ", " + t(d.hand === "both" ? "both hands" : d.hand === "left" ? "left hand" : "right hand");
+    const d = drillSettings();
+    const type = d.type || "reading";
+    const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
+    const W = P.abcwrite;
+    ear = null;
+    if (type === "ear") return newEar();
+    const handName = t(d.hand === "both" ? "both hands" : d.hand === "left" ? "left hand" : "right hand");
+    let text, label, opts = { hands: d.hand === "both" ? "both" : d.hand, tempo: d.tempo }, id;
+    if (type === "scale" || type === "chords") {
+      const key = pickKey(d.key, [...W.KEYS, ...W.MINORS]);
+      text = type === "scale" ? W.scaleExercise({ key, hand: d.hand, octaves: +d.octaves || 1, tempo: d.tempo }) : W.chordExercise({ key, hand: d.hand, tempo: d.tempo });
+      label = t(type === "scale" ? "Scale" : "Chords") + " · " + keyLabel(key) + ", " + handName;
+      id = [type, key, d.hand, type === "scale" ? +d.octaves || 1 : ""].join("|");
+    } else if (type === "rhythm") {
+      text = W.rhythmExercise({ rhythm: d.rhythm, bars: +d.bars || 4, tempo: d.tempo, seed });
+      label = t("Rhythm") + " · " + t(d.rhythm === "mixed" ? "mixed" : "steady");
+      opts = { hands: "right", tempo: d.tempo, mode: "flow", metronome: true };
+      id = ["rhythm", d.rhythm].join("|");
+    } else {
+      const key = W.KEYS.includes(d.key) ? d.key : "C";
+      text = W.drill({ ...d, key, bars: +d.bars || 4, seed });
+      label = t("Sight-reading") + " · " + key.replace("b", "♭") + ", " + t(d.range === "five" ? "five notes" : d.range === "octave" ? "an octave" : "two octaves") + ", " + handName;
+      id = [key, d.range, d.hand, d.rhythm].join("|");
+    }
     passes = [];
     try {
-      await practice.load({ kind: "abc", data: text, title: t("Sight-reading"), opts: { hands: d.hand === "both" ? "both" : d.hand, tempo: d.tempo }, source: { drill: [d.key, d.range, d.hand, d.rhythm].join("|"), label } });
+      await practice.load({ kind: "abc", data: text, title: label, opts, source: { drill: id, label } });
       renderStats();
     } catch (e) { toast(t("Couldn't make a drill: {why}", { why: e.message || String(e) })); }
+  }
+
+  // By ear: the app plays, you play it back, then the music shows.
+  async function newEar() {
+    const d = drillSettings();
+    const key = pickKey(d.key, [...P.abcwrite.KEYS, ...P.abcwrite.MINORS]);
+    const phrase = P.abcwrite.earPhrase({ key, count: +d.count || 4, range: d.earRange || "five", seed: (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0 });
+    ear = { ...phrase, key, played: [], phase: "listen", tries: 0 };
+    await practice.load({ kind: "free", message: t("Listen, then play it back. The music shows once you've played it.") });
+    renderEar();
+    playEar();
+  }
+  function sound(m, on, vel = 80) { if (!midi.send(m, on, vel)) { if (on) synth.noteOn(m, vel); else synth.noteOff(m); } }
+  function playEar() {
+    if (!ear) return;
+    synth.unlock();
+    const mine = ear;
+    mine.phase = "listen"; mine.played = []; renderEar();
+    const q = mine.tonic;
+    const third = /m$/.test(mine.key) ? 3 : 4;
+    const triad = [q - 12, q, q + third, q + 7];
+    const at = (ms, fn) => setTimeout(() => { if (ear === mine) fn(); }, ms);
+    for (const m of triad) { at(0, () => sound(m, true, 60)); at(900, () => sound(m, false)); }
+    mine.midis.forEach((m, i) => { at(1400 + i * 650, () => sound(m, true)); at(1400 + i * 650 + 560, () => sound(m, false)); });
+    at(1400 + mine.midis.length * 650, () => { mine.phase = "answer"; renderEar(); });
+  }
+  function earNote(m) {
+    if (!ear || ear.phase !== "answer" || !(lessonState && lessonState.drill)) return;
+    ear.played.push(m);
+    if (ear.played.length >= ear.midis.length) {
+      ear.tries++;
+      ear.phase = ear.played.every((x, i) => x === ear.midis[i]) ? "right" : "wrong";
+      if (ear.phase === "right") revealEar();
+    }
+    renderEar();
+  }
+  async function revealEar() {
+    if (!ear) return;
+    const keep = ear;
+    if (ear.phase !== "right") ear.phase = "shown";
+    await practice.load({ kind: "abc", data: keep.abc, title: t("By ear"), opts: { hands: "right" } });
+    ear = keep;
+    renderEar();
+  }
+  function renderEar() {
+    const box = document.getElementById("ear-box");
+    if (!box || !ear) { if (box) box.replaceChildren(); return; }
+    const name = (m) => P.music.name(m);
+    const parts = [];
+    const msg = {
+      listen: t("Listen…"),
+      answer: t("Your turn: {n} notes, starting on {first}.", { n: ear.midis.length, first: name(ear.midis[0]) }),
+      right: ear.tries === 1 ? t("Right first time.") : t("Right, in {n} tries.", { n: ear.tries }),
+      wrong: t("Not quite. You played {notes}.", { notes: ear.played.map(name).join(" ") }),
+      shown: t("Here it is: {notes}.", { notes: ear.midis.map(name).join(" ") }),
+    }[ear.phase];
+    parts.push(el("p", "ear-msg" + (ear.phase === "right" ? " good" : ear.phase === "wrong" ? " bad" : ""), msg));
+    if (ear.phase === "answer" && ear.played.length) parts.push(el("p", "dim", ear.played.map(name).join(" ")));
+    const row = el("div", "row");
+    const again = button(t("Hear it again"), "btn", () => playEar());
+    again.prepend(icon("play"));
+    row.appendChild(again);
+    if (ear.phase === "wrong" || ear.phase === "answer") row.appendChild(button(t("Show me"), "btn", () => revealEar()));
+    parts.push(row);
+    box.replaceChildren(...parts);
   }
 
   // ---- shortcuts, in Settings ----
@@ -1308,6 +1554,7 @@
 
   const motion = K.motion.create();
   window.PianoApp = { version: APP_VERSION, i18n, settings, get practice() { return practice; }, library, openLesson, openPiece, openFree, showLibrary, motion, toast,
-    progress, hotkeys: hot, recorder, get editor() { return editor; }, toggleEditor, openDrills, newDrill, toggleVideo, routeNote, runAction, toggleLayoutEditor, openThemeEditor, openBook, get pdf() { return pdf; } };
+    progress, hotkeys: hot, recorder, get editor() { return editor; }, toggleEditor, openDrills, newDrill, toggleVideo, routeNote, runAction, toggleLayoutEditor, openThemeEditor, openBook, get pdf() { return pdf; },
+    synth, startRoutine, get routine() { return routine; }, get ear() { return ear; } };
   start().catch((e) => { toast(String(e && e.message || e)); K.errlog.note("start", String(e && e.stack || e)); });
 })();
