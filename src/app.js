@@ -371,7 +371,7 @@
     lessonState = { course, path, meta, modified: r.modified, active: null, text: r.data };
     showLessonScreen(title);
     renderLessonText(body);
-    if (meta.book) openBook(meta.book, false);
+    if (meta.book) openBook(meta.book, false); else dropBook();
     editBtn.hidden = false;
     if (editorShown()) loadEditor();
     const first = lessonState.blocks.length ? { block: 0 } : lessonState.pieces.length ? { piece: 0 } : null;
@@ -382,6 +382,7 @@
 
   async function openPiece(course, path) {
     lessonState = { course, path: null, piecePath: path, meta: {}, blocks: [], pieces: [{ path, opts: {}, title: path.split("/").pop() }], active: null };
+    dropBook();
     showLessonScreen(path.split("/").pop());
     mounts.lesson.replaceChildren(el("h1", null, path.split("/").pop()), el("p", "dim", t("A piece on its own, with no lesson text.")));
     await activate({ piece: 0 });
@@ -954,6 +955,7 @@
       if (!shown.includes("book")) {
         // A book opened by hand takes the lesson's side; one a lesson opens sits at the right edge.
         setLayout(reveal ? P.layout.place(currentLayout(), "book", shown.includes("lesson") ? "lesson" : shown[0], "right") : { dir: "row", sizes: [0.72, 0.28], children: [currentLayout(), "book"] });
+        autoBook = !reveal;
       }
       const page = b.page || (settings.get("bookPages") || {})[id] || 1;
       if (pdf.key === id) { pdf.go(page); return; }
@@ -964,9 +966,19 @@
     }
   }
 
+  // Music without a book closes the last one, and takes its panel away if
+  // a lesson put it there.
+  let autoBook = false;
+  function dropBook() {
+    if (pdf.key) pdf.close();
+    if (autoBook && P.layout.panels(currentLayout()).includes("book")) setLayout(P.layout.remove(currentLayout(), "book"));
+    autoBook = false;
+  }
+
   // ---- free play and recording ----
   async function openFree() {
     lessonState = { course: null, path: null, meta: {}, blocks: [], pieces: [], active: null, free: true };
+    dropBook();
     showLessonScreen(t("Free play"));
     mounts.lesson.replaceChildren(el("h1", null, t("Free play")),
       el("p", null, t("Play anything. What you play rises from the keys.")),
@@ -1118,6 +1130,7 @@
   }
   async function openDrills() {
     lessonState = { course: null, path: null, meta: {}, blocks: [], pieces: [], active: null, drill: true };
+    dropBook();
     showLessonScreen(t("Sight-reading"));
     renderDrillForm();
     await newDrill();

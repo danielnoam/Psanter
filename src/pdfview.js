@@ -12,7 +12,7 @@
   }
 
   function create(container, { onPage, t = (s) => s, icon } = {}) {
-    let doc = null, page = 1, zoom = 1, task = null, key = null, resizeTimer = 0, lastWidth = 0;
+    let doc = null, loading = null, page = 1, zoom = 1, task = null, key = null, resizeTimer = 0, lastWidth = 0;
     const bar = document.createElement("div");
     bar.className = "pdf-bar";
     const btn = (name, label, fn) => { const b = document.createElement("button"); b.type = "button"; b.className = "icon-btn"; b.title = label; b.setAttribute("aria-label", label); if (icon) b.appendChild(icon(name)); b.addEventListener("click", fn); return b; };
@@ -42,8 +42,9 @@
     async function open(bytes, at, id, title) {
       if (id && id === key && doc) { if (at) go(at); return; }
       const P = await pdfjs();
-      if (doc) { doc.destroy(); doc = null; }
-      doc = await P.getDocument({ data: bytes, isEvalSupported: false }).promise;
+      release();
+      loading = P.getDocument({ data: bytes, isEvalSupported: false });
+      doc = await loading.promise;
       key = id; page = 1; zoom = 1;
       name.textContent = title || "";
       empty.hidden = true; view.hidden = false; bar.hidden = false;
@@ -85,7 +86,8 @@
       resizeTimer = setTimeout(draw, 150);
     }
 
-    function close(message) { if (doc) doc.destroy(); doc = null; key = null; showEmpty(message || t("No book open.")); }
+    function release() { if (loading) { try { loading.destroy(); } catch (e) { /* already gone */ } } loading = null; doc = null; }
+    function close(message) { release(); key = null; showEmpty(message || t("No book open.")); }
 
     return { open, go, resize, close, get page() { return page; }, get key() { return key; }, get open_() { return !!doc; } };
   }
