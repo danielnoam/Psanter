@@ -14,7 +14,7 @@
   const t = i18n.t;
 
   // ---- settings: one object, saved as it changes ----
-  const DEFAULTS = { theme: "system", mode: "wait", metronome: false, countIn: false, echo: false, typing: true,
+  const DEFAULTS = { theme: "dark", lookVersion: 2, mode: "wait", metronome: false, countIn: false, echo: false, typing: true,
     lookahead: 3, range: "song", volume: 0.7, autoVolume: 0.8, room: 0.16, output: "", layout: null, last: null,
     noteNames: "off", fingers: true, autoSpeed: false, autoSpeedGoal: 100, colors: { light: {}, dark: {} },
     keys: {}, pianoKeys: {}, bookPages: {}, effects: null, lightChannel: -1, goal: 15, latency: 0, midiHands: {}, sound: "grand",
@@ -23,6 +23,8 @@
   const settings = (() => {
     let data = { ...DEFAULTS };
     try { data = { ...data, ...JSON.parse(localStorage.getItem("piano.settings") || "{}") }; } catch (e) { /* first run or blocked storage */ }
+    // The desktop look (lookVersion 2) starts dark, with its own panel layout.
+    if (data.lookVersion !== 2) { data.lookVersion = 2; data.layout = null; if (data.theme === "system") data.theme = "dark"; }
     const listeners = new Set();
     return {
       get: (k) => data[k],
@@ -37,7 +39,6 @@
   })();
 
   const layoutBtn = button("", "icon-btn", null);
-  layoutBtn.hidden = true;
 
   // ---- theme ----
   const dark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
@@ -130,9 +131,6 @@
     stopWatching();
     $("lesson-screen").hidden = true;
     $("library").hidden = false;
-    $("back").hidden = true;
-    layoutBtn.hidden = true;
-    editBtn.hidden = true;
     if (editorShown()) toggleEditor(false);
     midi.light([], settings.get("lightChannel"));
     if (video) toggleVideo();
@@ -144,80 +142,310 @@
     await renderLibrary();
   }
 
+  // The library: a navigation pane, a command bar, and the lessons and
+  // pieces as a table with a details pane for the selected one.
+  let libView = "all", libSel = null;
+  const titles = {};
+  const LIB_VIEWS = [["all", "book", "Library"], ["review", "repeat", "Due for review"], ["today", "target", "Today's practice"], ["drills", "music", "Drills"], ["progress", "chart", "Progress"]];
+
   async function renderLibrary() {
     courses = await library.list();
-    const root = $("library");
-    const inner = el("div", "library-inner");
-    const head = el("div", "library-head");
-    head.appendChild(el("h2", null, t("Library")));
-    const add = button(t("+ Add folder"), "btn", async () => {
-      try {
-        if (library.canPick()) { const id = await library.addFolder(); if (id) await renderLibrary(); }
-        else pickFiles(true);
-      } catch (e) { if (e && e.name !== "AbortError") toast(t("Couldn't add that folder: {why}", { why: e.message })); }
-    });
-    add.prepend(icon("folder-plus"));
-    const open = button(t("Open file"), "btn", () => pickFiles(false));
-    open.prepend(icon("file"));
-    const free = button(t("Free play"), "btn", () => openFree());
-    free.prepend(icon("keyboard"));
-    head.append(add, open, free);
-    inner.appendChild(head);
-
-    const last = settings.get("last");
-    if (last && courses.some((c) => c.id === last.course)) {
-      const card = el("div", "continue");
-      const text = el("div", "grow");
-      text.append(el("div", "dim", t("Continue")), el("strong", null, last.title || last.path));
-      card.append(icon("book"), text, button(t("Open lesson"), "btn primary", () => openLesson(last.course, last.path)));
-      inner.appendChild(card);
+    const due = progress.dueForReview(today()).filter((r) => openable(r.key));
+    const nav = el("nav", "lib-nav");
+    nav.setAttribute("aria-label", t("Library pages"));
+    for (const [id, ic, label] of LIB_VIEWS) {
+      const b = button("", null, () => { libView = id; renderLibrary(); });
+      b.append(icon(ic), el("span", null, t(label)));
+      if (id === "review" && due.length) b.appendChild(el("span", "count", String(due.length)));
+      b.setAttribute("aria-current", String(libView === id));
+      nav.appendChild(b);
     }
+    const free = button("", null, () => openFree());
+    free.append(icon("keyboard"), el("span", null, t("Free play")));
+    const set = button("", null, () => openSettings());
+    set.append(icon("sliders"), el("span", null, t("Settings")));
+    nav.append(free, el("span", "grow"), set);
 
-    inner.appendChild(daysCard());
-    const rv = reviewCard();
-    if (rv) inner.appendChild(rv);
-    inner.appendChild(routineCard());
-    inner.appendChild(drillCard());
-    for (const c of courses) inner.appendChild(courseCard(c));
-    if (!library.canPick()) inner.appendChild(el("p", "dim", t("This browser can't keep folders between visits; use the desktop app for that.")));
-    root.replaceChildren(inner);
+    const main = el("div", "lib-main");
+    const view = { all: libraryView, review: reviewView, today: todayView, drills: drillsView, progress: progressView }[libView] || libraryView;
+    main.append(...view(due));
+    $("library").replaceChildren(nav, main);
+    renderToday();
   }
 
-  function courseCard(c) {
-    const card = el("section", "course");
-    const head = el("div", "course-head");
-    head.appendChild(el("h3", null, c.title));
-    if (c.kind === "folder") {
-      if (c.status === "needs-permission") head.appendChild(button(t("Allow access"), "btn", async () => { if (await library.reconnect(c.id)) renderLibrary(); }));
-      const rm = button("", "icon-btn quiet", async () => { await library.removeFolder(c.id); renderLibrary(); });
-      rm.title = t("Remove from library"); rm.setAttribute("aria-label", rm.title); rm.appendChild(icon("x"));
-      head.appendChild(rm);
+  function libHead(title, crumb) {
+    const h = el("div", "lib-head");
+    if (crumb) h.appendChild(el("div", "crumb", crumb));
+    h.appendChild(el("h2", null, title));
+    return h;
+  }
+  function commands(...kids) { const c = el("div", "commands"); c.setAttribute("role", "toolbar"); c.append(...kids.filter(Boolean)); return c; }
+  function cmd(label, ic, onClick, primary) { const b = button(label, "btn" + (primary ? " primary" : ""), onClick); if (ic) b.prepend(icon(ic, 14)); return b; }
+  function libCommands(note) {
+    const last = settings.get("last");
+    const cont = last && courses.some((c) => c.id === last.course) ? cmd(t("Continue: {name}", { name: last.title || last.path }), "play", () => openLesson(last.course, last.path), true) : null;
+    return commands(
+      cmd(t("Add a folder"), "folder-plus", async () => {
+        try {
+          if (library.canPick()) { const id = await library.addFolder(); if (id) await renderLibrary(); }
+          else pickFiles(true);
+        } catch (e) { if (e && e.name !== "AbortError") toast(t("Couldn't add that folder: {why}", { why: e.message })); }
+      }),
+      cmd(t("Open a file"), "file", () => pickFiles(false)),
+      cont ? el("span", "sep") : null, cont,
+      note ? el("span", "note", note) : null);
+  }
+
+  // What progress knows about a lesson (all its exercises) or a piece.
+  function summary(all, course, path, lesson) {
+    const keys = Object.keys(all).filter((k) => (lesson ? k.startsWith(course + "|" + path + "#") : k === course + "|" + path));
+    if (!keys.length) return null;
+    const out = { seconds: 0, runs: 0, last: "", best: 0, due: "" };
+    for (const k of keys) {
+      const p = all[k];
+      out.seconds += p.seconds || 0; out.runs += p.runs || 0;
+      if ((p.lastDay || "") > out.last) out.last = p.lastDay;
+      if (p.best && p.best.speed > out.best) out.best = p.best.speed;
+      if (p.review && p.review.due && (!out.due || p.review.due < out.due)) out.due = p.review.due;
     }
-    card.appendChild(head);
-    if (c.status === "needs-permission") { card.appendChild(el("p", "course-note", t("The app needs your OK to read this folder again."))); return card; }
-    if (c.status === "missing") { card.appendChild(el("p", "course-note", t("This folder isn't there any more."))); return card; }
-    if (!c.lessons.length && !c.pieces.length) { card.appendChild(el("p", "course-note", t("No lessons or pieces in this folder yet."))); return card; }
-    const list = el("ul", "items");
-    for (const path of c.lessons) {
-      const li = document.createElement("li");
-      const b = button("", null, () => openLesson(c.id, path));
-      const name = el("span", null, P.lesson.title({}, "", path));
-      b.append(icon("book"), name);
-      li.appendChild(b); list.appendChild(li);
-      // The real title is in the file; fill it in once read.
-      library.read(c.id, path).then((r) => { const fm = P.lesson.frontMatter(r.data); name.textContent = P.lesson.title(fm.meta, fm.body, path); }).catch(() => {});
+    return out;
+  }
+  function dayLabel(day) {
+    if (!day) return t("Never");
+    const d = today();
+    if (day === d) return t("Today");
+    if (day === P.progress.addDays(d, -1)) return t("Yesterday");
+    const [y, m, dd] = day.split("-").map(Number);
+    return new Date(y, m - 1, dd).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  }
+  function dueLabel(due) {
+    if (!due) return "";
+    const d = today();
+    if (due < d) return t("Overdue");
+    if (due === d) return t("Due today");
+    if (due === P.progress.addDays(d, 1)) return t("Tomorrow");
+    const days = Math.round((Date.parse(due) - Date.parse(d)) / 86400000);
+    return t("In {n} days", { n: days });
+  }
+  const KINDS = { md: "Lesson", abc: "ABC", musicxml: "MusicXML", mxl: "MusicXML", midi: "MIDI" };
+  function kindOf(path) { return t(/\.md$/i.test(path) ? "Lesson" : KINDS[P.lesson.kind(path)] || "Piece"); }
+
+  // rows: [{ group } | { note } | { course, path, lesson, cells: [...] }]
+  function fileTable(columns, rows, onPick) {
+    const table = el("table", "files");
+    table.setAttribute("role", "grid");
+    const head = el("tr");
+    for (const c of columns) head.appendChild(el("th", null, c));
+    const thead = el("thead"); thead.appendChild(head);
+    const body = el("tbody");
+    const items = [];
+    for (const r of rows) {
+      const tr = el("tr");
+      if (r.group) {
+        tr.className = "group";
+        const td = el("td", null, r.group); td.colSpan = columns.length;
+        if (r.tools && r.tools.length) { const g = el("span", "group-tools"); g.append(...r.tools); td.appendChild(g); }
+        tr.appendChild(td);
+      } else if (r.note) {
+        tr.className = "note";
+        const td = el("td", null, r.note); td.colSpan = columns.length; tr.appendChild(td);
+      } else {
+        tr.className = "row-item";
+        tr.tabIndex = -1;
+        const selected = libSel && libSel.course === r.course && libSel.path === r.path;
+        tr.setAttribute("aria-selected", String(!!selected));
+        r.cells.forEach((c, i) => {
+          const td = el("td", i === 0 ? "name" : null);
+          if (i === 0) { td.append(icon(r.lesson ? "book" : "music", 14), c); td.title = typeof c === "string" ? c : c.textContent; }
+          else if (c && c.nodeType) td.appendChild(c); else td.textContent = c || "";
+          tr.appendChild(td);
+        });
+        tr.addEventListener("click", () => select(tr, r));
+        tr.addEventListener("dblclick", () => openItem(r));
+        tr.addEventListener("keydown", (e) => {
+          const i = items.indexOf(tr);
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            const next = items[Math.max(0, Math.min(items.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))];
+            next.focus(); next.click();
+          } else if (e.key === "Enter") { e.preventDefault(); openItem(r); }
+        });
+        items.push(tr);
+      }
+      body.appendChild(tr);
     }
-    if (c.pieces.length) {
-      list.appendChild(el("li", "sub", t("Pieces")));
+    function select(tr, r) {
+      for (const x of items) { x.setAttribute("aria-selected", String(x === tr)); x.tabIndex = x === tr ? 0 : -1; }
+      libSel = r;
+      onPick(r);
+    }
+    const first = items.find((x) => x.getAttribute("aria-selected") === "true") || items[0];
+    if (first) first.tabIndex = 0;
+    table.append(thead, body);
+    return table;
+  }
+  function openItem(r) { if (r.open) r.open(); else if (r.lesson) openLesson(r.course, r.path); else openPiece(r.course, r.path); }
+
+  function details(box, r, all) {
+    box.replaceChildren();
+    if (!r) { box.appendChild(el("p", "empty", t("Pick a lesson or piece to see how it's going."))); return; }
+    const c = courses.find((x) => x.id === r.course);
+    const name = r.title || titles[r.course + "|" + r.path] || P.lesson.title({}, "", r.path);
+    const head = el("div");
+    head.append(el("h3", null, name), el("div", "sub", kindOf(r.path) + (c ? ", " + c.title : "")));
+    const sm = summary(all, r.course, r.path, r.lesson);
+    const dl = el("dl");
+    const add = (k, v) => dl.append(el("dt", null, k), el("dd", null, v));
+    add(t("Last practised"), dayLabel(sm && sm.last));
+    add(t("Practised"), sm ? minutes(sm.seconds) : "–");
+    add(t("Runs"), sm ? String(sm.runs) : "0");
+    add(t("Best tempo"), sm && sm.best ? pct(sm.best) : "–");
+    add(t("Review"), sm && sm.due ? dueLabel(sm.due) : t("Not learned yet"));
+    const row = el("div", "row");
+    row.appendChild(button(r.lesson && !r.key ? t("Open the lesson") : t("Practise"), "btn primary", () => openItem(r)));
+    if (r.lesson && !r.key && library.writable(r.course)) row.appendChild(button(t("Edit"), "btn", async () => { await openLesson(r.course, r.path); if (!editorShown()) toggleEditor(true); }));
+    box.append(head, dl, row, el("p", "hint", t("Enter opens, the arrows move, a double-click opens too.")));
+  }
+
+  function withDetails(table, pick, all) {
+    const body = el("div", "lib-body");
+    const scroll = el("div", "lib-scroll");
+    scroll.appendChild(table);
+    const side = el("aside", "details");
+    side.setAttribute("aria-label", t("Details"));
+    body.append(scroll, side);
+    details(side, pick, all);
+    return { body, side };
+  }
+
+  function libraryView(due) {
+    const all = progress.all().pieces;
+    let lessons = 0, pieces = 0;
+    const rows = [];
+    let side = null;
+    const fill = (span, course, path) => {
+      const key = course + "|" + path;
+      if (titles[key]) { span.textContent = titles[key]; return; }
+      library.read(course, path).then((r) => {
+        const fm = P.lesson.frontMatter(r.data);
+        titles[key] = P.lesson.title(fm.meta, fm.body, path);
+        span.textContent = titles[key];
+        if (side && libSel && libSel.course === course && libSel.path === path) details(side, libSel, all);
+      }).catch(() => {});
+    };
+    for (const c of courses) {
+      const tools = [];
+      if (c.kind === "folder") {
+        if (c.status === "needs-permission") tools.push(button(t("Allow access"), "btn", async () => { if (await library.reconnect(c.id)) renderLibrary(); }));
+        const rm = iconButton("x", t("Remove from library"), async () => { await library.removeFolder(c.id); renderLibrary(); });
+        rm.classList.add("quiet");
+        tools.push(rm);
+      }
+      rows.push({ group: c.title, tools });
+      if (c.status === "needs-permission") { rows.push({ note: t("The app needs your OK to read this folder again.") }); continue; }
+      if (c.status === "missing") { rows.push({ note: t("This folder isn't there any more.") }); continue; }
+      if (!c.lessons.length && !c.pieces.length) { rows.push({ note: t("No lessons or pieces in this folder yet.") }); continue; }
+      for (const path of c.lessons) {
+        const name = el("span", null, titles[c.id + "|" + path] || P.lesson.title({}, "", path));
+        fill(name, c.id, path);
+        const sm = summary(all, c.id, path, true);
+        rows.push({ course: c.id, path, lesson: true, cells: [name, t("Lesson"), dayLabel(sm && sm.last), sm && sm.best ? pct(sm.best) : "", dueCell(sm)] });
+        lessons++;
+      }
       for (const path of c.pieces) {
-        const li = document.createElement("li");
-        const b = button("", null, () => openPiece(c.id, path));
-        b.append(icon("music"), el("span", null, path.split("/").pop()), el("span", "meta", (P.lesson.kind(path) || "").toUpperCase()));
-        li.appendChild(b); list.appendChild(li);
+        titles[c.id + "|" + path] = titles[c.id + "|" + path] || path.split("/").pop();
+        const sm = summary(all, c.id, path, false);
+        rows.push({ course: c.id, path, lesson: false, cells: [path.split("/").pop(), kindOf(path), dayLabel(sm && sm.last), sm && sm.best ? pct(sm.best) : "", dueCell(sm)] });
+        pieces++;
       }
     }
-    card.appendChild(list);
-    return card;
+    if (libSel && !rows.some((r) => r.course === libSel.course && r.path === libSel.path)) libSel = null;
+    const parts = [t("{n} lessons", { n: lessons }), t("{n} pieces", { n: pieces })];
+    if (due.length) parts.push(t("{n} due for review", { n: due.length }));
+    const table = fileTable([t("Name"), t("Kind"), t("Last practised"), t("Best"), t("Review")], rows, (r) => details(side, r, all));
+    const w = withDetails(table, libSel, all);
+    side = w.side;
+    const note = library.canPick() ? parts.join(", ") : t("This browser can't keep folders between visits; use the desktop app for that.");
+    return [libHead(t("Lessons and pieces"), t("Library")), libCommands(note), w.body];
+  }
+  function dueCell(sm) {
+    if (!sm || !sm.due) return sm ? t("Not learned yet") : "";
+    const s = el("span", sm.due <= today() ? "due" : null, dueLabel(sm.due));
+    return s;
+  }
+
+  // A progress key as a row: lessons are course|path#block, pieces course|path.
+  function keyRow(key, all) {
+    const i = key.indexOf("|"), course = key.slice(0, i), rest = key.slice(i + 1);
+    const m = /^(.*)#\d+$/.exec(rest);
+    return { course, path: m ? m[1] : rest, lesson: !!m, title: (all[key] && all[key].title) || rest };
+  }
+  function reviewView(due) {
+    const all = progress.all().pieces;
+    const rows = due.map((r) => {
+      const k = keyRow(r.key, all);
+      const p = all[r.key] || {};
+      return { ...k, key: r.key, open: () => openKey(r.key), cells: [r.title || k.title, k.lesson ? t("Exercise") : kindOf(k.path), dayLabel(p.lastDay), p.best ? pct(p.best.speed) : "", dueCell({ due: r.due })] };
+    });
+    if (!rows.length) rows.push({ note: t("Nothing to review today. Pieces you've learned come back after 1, 3, 7, 14, 30 and 60 days.") });
+    let side = null;
+    const table = fileTable([t("Name"), t("Kind"), t("Last practised"), t("Best"), t("Review")], rows, (r) => details(side, r, all));
+    const w = withDetails(table, null, all);
+    side = w.side;
+    const start = due.length ? cmd(t("Review the first one"), "play", () => openKey(due[0].key), true) : null;
+    return [libHead(t("Due for review"), t("Library")), commands(start, el("span", "note", t("A good run sends a piece further out: 1, 3, 7, 14, 30, then 60 days."))), w.body];
+  }
+  function todayView() {
+    const body = el("div", "lib-body single");
+    const scroll = el("div", "lib-scroll");
+    const pg = el("div", "lib-page");
+    const plan = routinePlan();
+    const card = el("section", "course");
+    const head = el("div", "course-head"); head.appendChild(el("h3", null, t("The plan, {n} minutes", { n: plan.steps.reduce((a, x) => a + x.minutes, 0) })));
+    const ul = el("ul", "items");
+    plan.steps.forEach((x, i) => {
+      const li = document.createElement("li");
+      const b = button("", null, () => startRoutine());
+      b.append(el("span", "dim", String(i + 1) + "."), el("span", null, x.name), el("span", "meta", t("{n} min", { n: x.minutes })));
+      li.appendChild(b); ul.appendChild(li);
+    });
+    card.append(head, ul);
+    pg.append(card, el("p", "dim", t("The minutes come from your daily goal (Settings, Practice). The warm-up key moves round the circle of fifths a day at a time.")), daysCard());
+    scroll.appendChild(pg); body.appendChild(scroll);
+    return [libHead(t("Today's practice"), t("Library")), commands(cmd(t("Start"), "play", () => startRoutine(), true)), body];
+  }
+  function drillsView() {
+    const body = el("div", "lib-body single");
+    const scroll = el("div", "lib-scroll");
+    const pg = el("div", "lib-page");
+    const list = el("section", "course");
+    const ul = el("ul", "items");
+    for (const [type, name] of DRILL_TYPES) {
+      const li = document.createElement("li");
+      const b = button("", null, () => { settings.set("drill", { ...settings.get("drill"), type }); openDrills(); });
+      b.append(icon("music", 14), el("span", null, t(name)), el("span", "meta", type === (settings.get("drill") || {}).type ? t("Last used") : ""));
+      li.appendChild(b); ul.appendChild(li);
+    }
+    list.appendChild(ul);
+    pg.append(el("p", "dim", t("Sight-reading, scales and chords in every key, rhythm and playing by ear. New music every time.")), list);
+    scroll.appendChild(pg); body.appendChild(scroll);
+    return [libHead(t("Drills"), t("Library")), commands(cmd(t("Start drills"), "play", () => openDrills(), true)), body];
+  }
+  function progressView() {
+    const all = progress.all().pieces;
+    const keys = Object.keys(all).filter((k) => all[k].seconds || all[k].runs).sort((a, b) => (all[b].lastDay || "").localeCompare(all[a].lastDay || ""));
+    const rows = keys.map((key) => {
+      const k = keyRow(key, all), p = all[key];
+      return { ...k, key, open: () => { if (openable(key)) openKey(key); else toast(t("That one isn't in the library any more.")); }, cells: [p.title || k.title, minutes(p.seconds || 0), String(p.runs || 0), p.best ? pct(p.best.speed) : "", dayLabel(p.lastDay)] };
+    });
+    if (!rows.length) rows.push({ note: t("Nothing yet. Practise something and it shows here.") });
+    const body = el("div", "lib-body single");
+    const scroll = el("div", "lib-scroll");
+    const pg = el("div", "lib-page");
+    pg.appendChild(daysCard());
+    const table = fileTable([t("Name"), t("Practised"), t("Runs"), t("Best tempo"), t("Last practised")], rows, () => {});
+    scroll.append(pg, table); body.appendChild(scroll);
+    return [libHead(t("Progress"), t("Library")), commands(el("span", "note", t("Every lesson exercise and piece you've practised, newest first."))), body];
   }
 
   function pickFiles(folder) {
@@ -238,7 +466,7 @@
   // ---- the lesson screen ----
   const PANELS = ["lesson", "score", "roll", "stats", "book", "editor"];
   const PANEL_NAMES = { lesson: "Lesson", score: "Score", roll: "Keys", stats: "Progress", book: "Book", editor: "Editor" };
-  const DEFAULT_LAYOUT = { dir: "row", sizes: [0.36, 0.64], children: [{ dir: "col", sizes: [0.68, 0.32], children: ["lesson", "stats"] }, { dir: "col", sizes: [0.52, 0.48], children: ["score", "roll"] }] };
+  const DEFAULT_LAYOUT = { dir: "row", sizes: [0.24, 0.54, 0.22], children: ["lesson", { dir: "col", sizes: [0.6, 0.4], children: ["score", "roll"] }, "stats"] };
   const PRESETS = {
     lesson: { name: "Lesson", tree: DEFAULT_LAYOUT },
     play: { name: "Just playing", tree: { dir: "col", sizes: [0.5, 0.5], children: ["score", "roll"] } },
@@ -250,6 +478,8 @@
   const editBtn = button("", "icon-btn", null);
   editBtn.hidden = true;
   const mounts = {};
+  // Each panel's title bar carries one line about what's in it.
+  const heads = { lesson: el("span"), score: el("span"), roll: el("span"), stats: el("span"), book: el("span"), editor: el("span") };
   let lessonState = null; // { course, path, meta, blocks, pieces, active, modified }
   let watchTimer = 0;
 
@@ -314,6 +544,7 @@
       onChange: (next) => setLayout(next),
       editing: editingLayout,
       label: (id) => t(PANEL_NAMES[id] || id),
+      head: (id) => heads[id],
       onDrop: (panel, target, side) => setLayout(P.layout.place(currentLayout(), panel, target, side)),
     });
     $("panels").classList.toggle("editing", editingLayout);
@@ -361,13 +592,12 @@
   function showLessonScreen(title) {
     $("library").hidden = true;
     $("lesson-screen").hidden = false;
-    $("back").hidden = false;
-    layoutBtn.hidden = false;
     editBtn.hidden = true;
     // The editor only stays for a lesson; pieces, drills and free play have no text.
     if (!(lessonState && lessonState.path) && P.layout.panels(currentLayout()).includes("editor")) settings.set("layout", P.layout.remove(currentLayout(), "editor"));
     $("title").textContent = title;
     document.title = title + " - Piano";
+    heads.score.textContent = "";
     renderLayout();
   }
 
@@ -503,8 +733,7 @@
       passes = [];
       await practice.load(target);
       const s = practice.state();
-      $("status").textContent = "";
-      if (s.song) $("status").textContent = t("{n} bars", { n: s.song.measures });
+      heads.score.textContent = [target.title, describe(target.opts || {})].filter(Boolean).join(", ");
       if (target.kind === "midi") renderTracks(lessonState.course + "|" + lessonState.pieces[which.piece].path);
     } catch (e) {
       toast(t("Couldn't load that music: {why}", { why: e.message || String(e) }));
@@ -597,25 +826,33 @@
   // ---- transport ----
   const tr = {};
   function buildTransport(timelineCanvas) {
-    const bar = $("transport");
+    const bar = $("toolbar");
+    tr.back = iconButton("arrow-left", t("Back to the library") + " (" + P.hotkeys.label(hot.keys.library) + ")", () => runAction("library"));
     tr.play = button("", "icon-btn play-btn", () => practice.act.toggle(performance.now()));
     tr.restart = iconButton("skip-back", t("Back to the start"), () => practice.act.restart());
-    const g1 = group(null, tr.play, tr.restart);
-    const tl = el("div", "timeline");
+    const tl = $("timeline");
     tl.appendChild(timelineCanvas);
     tl.title = t("Click a bar to go there; drag across bars to loop them");
-    tr.mode = seg([["wait", t("Wait")], ["flow", t("Flow")]], (v) => practice.act.mode(v));
-    tr.mode.title = t("Wait for each note, or keep going and score what you play");
-    tr.speedDown = iconButton("minus", t("Slower"), () => practice.act.speed(Math.max(0.25, practice.engine.speed - 0.05)));
-    tr.speedRange = document.createElement("input");
-    tr.speedRange.type = "range"; tr.speedRange.min = "25"; tr.speedRange.max = "150"; tr.speedRange.step = "5"; tr.speedRange.className = "speed-range";
-    tr.speedRange.setAttribute("aria-label", t("Speed"));
-    tr.speedRange.addEventListener("input", () => practice.act.speed(+tr.speedRange.value / 100));
-    tr.speedValue = el("span", "speed-value");
-    tr.speedUp = iconButton("plus", t("Faster"), () => practice.act.speed(Math.min(1.5, practice.engine.speed + 0.05)));
-    const speed = group(t("Speed"), tr.speedDown, tr.speedRange, tr.speedValue, tr.speedUp);
     tr.loop = iconButton("repeat", t("Loop"), () => practice.act.loop(!practice.engine.loop.on));
     tr.autoSpeed = iconButton("trending-up", t("Speed up 5% after each clean pass of the loop"), () => { settings.set("autoSpeed", !settings.get("autoSpeed")); renderTransport(practice.state()); });
+    tr.metronome = iconButton("timer", t("Metronome"), () => practice.act.metronome(!practice.engine.metronome));
+    tr.countIn = button(t("Count-in"), "btn", () => practice.act.countIn(!practice.engine.countIn));
+    tr.position = el("div", "position");
+    tr.position.title = t("The bar you're on");
+    tr.speedDown = iconButton("minus", t("Slower"), () => practice.act.speed(Math.max(0.25, practice.engine.speed - 0.05)));
+    tr.speedValue = document.createElement("input");
+    tr.speedValue.type = "number"; tr.speedValue.min = "25"; tr.speedValue.max = "150"; tr.speedValue.step = "5"; tr.speedValue.className = "num-field";
+    tr.speedValue.setAttribute("aria-label", t("Speed in percent"));
+    tr.speedValue.addEventListener("change", () => { const v = Math.max(25, Math.min(150, +tr.speedValue.value || 100)); practice.act.speed(v / 100); });
+    tr.speedUp = iconButton("plus", t("Faster"), () => practice.act.speed(Math.min(1.5, practice.engine.speed + 0.05)));
+    tr.mode = select([["wait", t("Wait for me")], ["flow", t("Flow")]], "wait", (v) => practice.act.mode(v));
+    tr.mode.title = t("Wait for each note, or keep going and score what you play");
+    tr.mode.setAttribute("aria-label", t("Mode"));
+    const hands = [["me", t("You")], ["auto", t("App")], ["off", t("Off")]];
+    tr.right = select(hands, "me", (v) => practice.act.hand("right", v));
+    tr.right.setAttribute("aria-label", t("Right hand"));
+    tr.left = select(hands, "me", (v) => practice.act.hand("left", v));
+    tr.left.setAttribute("aria-label", t("Left hand"));
     tr.keyDown = iconButton("minus", t("Down a semitone"), () => practice.act.transpose(practice.state().transpose - 1));
     tr.keyValue = el("span", "speed-value");
     tr.keyValue.title = t("Transpose: what you hear and play moves; the score stays in its written key");
@@ -625,30 +862,31 @@
     tr.recTime = el("span", "rec-time");
     tr.video = iconButton("video", t("Record a video of the falling notes"), () => toggleVideo());
     tr.video.classList.add("rec-btn");
-    tr.right = seg([["me", t("You")], ["auto", t("App")], ["off", t("Off")]], (v) => practice.act.hand("right", v));
-    tr.left = seg([["me", t("You")], ["auto", t("App")], ["off", t("Off")]], (v) => practice.act.hand("left", v));
-    tr.metronome = iconButton("timer", t("Metronome"), () => practice.act.metronome(!practice.engine.metronome));
-    tr.countIn = button(t("Count-in"), "btn", () => practice.act.countIn(!practice.engine.countIn));
-    bar.append(g1, tl, tr.mode, speed, group(null, tr.loop, tr.autoSpeed), group(t("Right"), tr.right), group(t("Left"), tr.left),
-      group(t("Key"), tr.keyDown, tr.keyValue, tr.keyUp), group(null, tr.metronome, tr.countIn), group(null, tr.record, tr.recTime, tr.video));
+    const sep = () => el("span", "sep");
+    bar.append(tr.back, sep(), tr.restart, tr.play, tr.loop, tr.autoSpeed, tr.metronome, tr.countIn, sep(), tr.position,
+      group(t("Speed"), tr.speedDown, tr.speedValue, tr.speedUp), group(t("Mode"), tr.mode),
+      group(t("Right"), tr.right), group(t("Left"), tr.left), group(t("Key"), tr.keyDown, tr.keyValue, tr.keyUp),
+      el("span", "spacer"), tr.record, tr.recTime, tr.video, sep(), editBtn, layoutBtn);
   }
 
   function renderTransport(s) {
     if (!tr.play) return;
-    tr.play.replaceChildren(icon(s.playing ? "pause" : "play", 20));
-    tr.play.title = s.playing ? t("Pause (Space)") : t("Play (Space)");
+    tr.play.replaceChildren(icon(s.playing ? "pause" : "play", 16));
+    tr.play.title = (s.playing ? t("Pause") : t("Play")) + " (" + P.hotkeys.label(hot.keys.toggle) + ")";
     tr.play.setAttribute("aria-label", tr.play.title);
-    setSeg(tr.mode, s.mode);
-    tr.speedRange.value = String(Math.round(s.speed * 100));
-    tr.speedValue.textContent = Math.round(s.speed * 100) + "%";
+    tr.mode.value = s.mode;
+    if (document.activeElement !== tr.speedValue) tr.speedValue.value = String(Math.round(s.speed * 100));
     tr.loop.setAttribute("aria-pressed", String(!!s.loop.on));
-    setSeg(tr.right, s.hands.right); setSeg(tr.left, s.hands.left);
+    tr.right.value = s.hands.right; tr.left.value = s.hands.left;
     tr.metronome.setAttribute("aria-pressed", String(!!s.metronome));
     tr.countIn.setAttribute("aria-pressed", String(!!s.countIn));
     tr.autoSpeed.setAttribute("aria-pressed", String(!!settings.get("autoSpeed")));
     tr.keyValue.textContent = s.transpose > 0 ? "+" + s.transpose : String(s.transpose || 0);
-    for (const b of [tr.keyDown, tr.keyUp, tr.loop, tr.autoSpeed, tr.metronome, tr.countIn, tr.restart]) b.disabled = !s.song;
+    for (const b of [tr.keyDown, tr.keyUp, tr.loop, tr.autoSpeed, tr.metronome, tr.countIn, tr.restart, tr.speedDown, tr.speedUp, tr.speedValue, tr.mode, tr.right, tr.left]) b.disabled = !s.song;
     tr.play.disabled = !s.song;
+    if (!heads.score.textContent && s.target && s.target.title) heads.score.textContent = s.target.title;
+    if (s.song) tr.position.replaceChildren(el("span", null, t("Bar")), el("strong", null, String(s.bar + 1)), el("span", null, t("of {n}", { n: s.song.measures })));
+    else tr.position.replaceChildren(el("span", null, t("Bar")), el("strong", null, "–"));
     let status = "";
     if (s.counting) status = t("Counting in");
     else if (s.waiting && s.expected.length) status = t("Play {notes}", { notes: s.expected.map((m) => P.music.name(m)).join(" ") });
@@ -678,7 +916,7 @@
   }
   function setSeg(box, value) { for (const b of box.children) b.setAttribute("aria-pressed", String(b.dataset.value === value)); }
   function group(label, ...kids) { const g = el("div", "group"); if (label) g.appendChild(el("span", "label", label)); g.append(...kids); return g; }
-  function iconButton(name, label, onClick) { const b = button("", "icon-btn", onClick); b.appendChild(icon(name)); b.title = label; b.setAttribute("aria-label", label); return b; }
+  function iconButton(name, label, onClick) { const b = button("", "icon-btn", onClick); b.appendChild(icon(name, 16)); b.title = label; b.setAttribute("aria-label", label); return b; }
 
   // Playing the drawn keyboard with the mouse or a finger.
   function mouseKeys(canvas) {
@@ -706,7 +944,7 @@
       captureKey(k === "Escape" ? null : k);
       return;
     }
-    if (e.metaKey || $("settings").open || themeOpen() || $("lesson-screen").hidden) return;
+    if (e.metaKey || (menu && menu.open) || $("settings").open || themeOpen() || $("lesson-screen").hidden) return;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.target.type !== "range") return;
     const action = hot.actionForKey(P.hotkeys.keyOf(e));
     if (!action) return;
@@ -1045,6 +1283,7 @@
     if (!(practice.engine.playing || performance.now() - lastNoteAt < 15000)) return;
     progress.addTime(pieceKey(), pieceTitle(), 1, today());
     if (++ticks % 15 === 0) { progress.flush(); statsSoon(); }
+    if (ticks % 30 === 0) renderToday();
   }, 1000);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") progress.flush(); });
   window.addEventListener("pagehide", () => progress.flush());
@@ -1835,6 +2074,83 @@
   }
   function tokenName(k) { for (const [, list] of P.theme.TOKENS) for (const [tok, label] of list) if (tok === k) return t(label); return k; }
 
+  // ---- the menu bar ----
+  let menu = null;
+  function openSettings(tab) { if (tab) settingsTab = tab; if (menu) menu.close(); renderSettings(); $("settings").showModal(); }
+  function buildMenus() {
+    const k = (a) => { const key = hot.keys[a]; return key ? P.hotkeys.label(key) : ""; };
+    const onLesson = () => !$("lesson-screen").hidden;
+    const has = () => onLesson() && !!(practice && practice.song);
+    const act = (a) => () => runAction(a);
+    const shown = () => P.layout.panels(currentLayout());
+    const addFolder = async () => {
+      try {
+        if (library.canPick()) { const id = await library.addFolder(); if (id) { if (onLesson()) await showLibrary(); else await renderLibrary(); } }
+        else pickFiles(true);
+      } catch (e) { if (e && e.name !== "AbortError") toast(t("Couldn't add that folder: {why}", { why: e.message })); }
+    };
+    const last = () => { const l = settings.get("last"); return l && courses.some((c) => c.id === l.course) ? l : null; };
+    const menus = [
+      { label: t("File"), items: () => [
+        { label: t("Add a folder…"), run: addFolder },
+        { label: t("Open a file…"), run: () => pickFiles(false) },
+        "-",
+        { label: t("Continue: {name}", { name: last() ? last().title || last().path : "–" }), disabled: !last(), run: () => openLesson(last().course, last().path) },
+        { label: t("Library"), key: onLesson() ? k("library") : "", disabled: !onLesson(), run: () => showLibrary() },
+        "-",
+        { label: t("Settings…"), key: "Ctrl+,", run: () => openSettings() },
+      ] },
+      { label: t("View"), items: () => [
+        ...PANELS.filter((id) => id !== "editor").map((id) => ({ label: t(PANEL_NAMES[id]), checked: shown().includes(id), disabled: !onLesson(),
+          run: () => { const tree = currentLayout(); if (shown().includes(id)) { if (shown().length > 1) setLayout(P.layout.remove(tree, id)); } else setLayout(P.layout.show(tree, id, PANELS)); } })),
+        "-",
+        ...Object.entries(PRESETS).map(([key, v]) => ({ label: t(v.name), disabled: !onLesson(), run: () => setLayout(PRESETS[key].tree) })),
+        { label: t("Move and hide panels…"), checked: editingLayout, disabled: !onLesson(), run: () => toggleLayoutEditor() },
+        "-",
+        { label: t("Dark"), checked: document.documentElement.dataset.theme === "dark", run: () => { settings.set("theme", "dark"); applyTheme(); } },
+        { label: t("Light"), checked: document.documentElement.dataset.theme === "light", run: () => { settings.set("theme", "light"); applyTheme(); } },
+        { label: t("Edit colours…"), run: () => openThemeEditor() },
+      ] },
+      { label: t("Practice"), items: () => [
+        { label: practice && practice.engine.playing ? t("Pause") : t("Play"), key: k("toggle"), disabled: !has(), run: act("toggle") },
+        { label: t("Back to the start"), key: k("restart"), disabled: !has(), run: act("restart") },
+        { label: t("Bar back"), key: k("barBack"), disabled: !has(), run: act("barBack") },
+        { label: t("Next bar"), key: k("barNext"), disabled: !has(), run: act("barNext") },
+        "-",
+        { label: t("Faster"), key: k("faster"), disabled: !has(), run: act("faster") },
+        { label: t("Slower"), key: k("slower"), disabled: !has(), run: act("slower") },
+        { label: t("Loop"), key: k("loop"), checked: !!(practice && practice.engine.loop.on), disabled: !has(), run: act("loop") },
+        { label: t("Wait for me"), key: k("mode"), checked: !!(practice && practice.engine.mode === "wait"), disabled: !has(), run: act("mode") },
+        { label: t("Metronome"), key: k("metronome"), checked: !!(practice && practice.engine.metronome), disabled: !has(), run: act("metronome") },
+        { label: t("Count-in"), checked: !!(practice && practice.engine.countIn), disabled: !has(), run: () => practice.act.countIn(!practice.engine.countIn) },
+        "-",
+        { label: t("Record what you play"), key: k("record"), checked: recorder.recording, disabled: !onLesson(), run: act("record") },
+        { label: t("Record a video of the falling notes"), checked: !!video, disabled: !onLesson(), run: () => toggleVideo() },
+        { label: t("Edit this lesson"), checked: editorShown(), disabled: !(onLesson() && lessonState && lessonState.path), run: () => toggleEditor() },
+        "-",
+        { label: t("Today's practice"), checked: !!routine, run: () => (routine ? endRoutine(false) : startRoutine()) },
+        { label: t("Free play"), run: () => openFree() },
+      ] },
+      { label: t("Drills"), items: () => DRILL_TYPES.map(([type, name]) => ({ label: t(name), run: () => { settings.set("drill", { ...settings.get("drill"), type }); openDrills(); } })) },
+      { label: t("Help"), items: () => [
+        { label: t("Shortcuts"), run: () => openSettings("shortcuts") },
+        { label: t("Check the delay"), run: () => openSettings("piano") },
+        "-",
+        { label: t("About"), run: () => openSettings("about") },
+      ] },
+    ];
+    menu = P.menus.create($("menubar"), menus, { before: $("menubar").querySelector(".spacer") });
+    window.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key === "," && !$("settings").open) { e.preventDefault(); openSettings(); }
+    });
+  }
+
+  // Today's minutes in the status bar.
+  function renderToday() {
+    const done = progress.today(today()), goal = settings.get("goal") || 0;
+    $("today").textContent = goal ? t("{done} of {goal} min today", { done: Math.round(done / 60), goal }) : t("{done} min today", { done: Math.round(done / 60) });
+  }
+
   // ---- small DOM helpers ----
   function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
   function button(text, cls, onClick) { const b = el("button", cls, text); b.type = "button"; if (onClick) b.addEventListener("click", onClick); return b; }
@@ -1842,24 +2158,19 @@
   // ---- start ----
   async function start() {
     applyTheme();
-    $("back").appendChild(icon("arrow-left"));
-    $("back").title = t("Library"); $("back").setAttribute("aria-label", t("Library"));
-    $("back").addEventListener("click", showLibrary);
     layoutBtn.appendChild(icon("layout"));
     layoutBtn.title = t("Move and hide panels"); layoutBtn.setAttribute("aria-label", layoutBtn.title);
     layoutBtn.setAttribute("aria-pressed", "false");
     layoutBtn.addEventListener("click", () => toggleLayoutEditor());
-    $("settings-btn").before(layoutBtn);
     editBtn.appendChild(icon("pencil"));
     editBtn.title = t("Edit this lesson"); editBtn.setAttribute("aria-label", editBtn.title);
     editBtn.setAttribute("aria-pressed", "false");
     editBtn.addEventListener("click", () => toggleEditor());
-    layoutBtn.before(editBtn);
     $("settings-btn").appendChild(icon("sliders"));
     $("settings-btn").title = t("Settings"); $("settings-btn").setAttribute("aria-label", t("Settings"));
-    const openSettings = () => { renderSettings(); $("settings").showModal(); };
-    $("settings-btn").addEventListener("click", openSettings);
-    $("device").addEventListener("click", openSettings);
+    $("settings-btn").addEventListener("click", () => openSettings());
+    $("device").addEventListener("click", () => openSettings("piano"));
+    buildMenus();
     renderDevice();
     buildPanels();
     await i18n.ready;
@@ -1867,6 +2178,7 @@
     await midi.start();
     if (settings.get("output")) midi.setOutput(settings.get("output"));
     renderDevice();
+    renderToday();
     await showLibrary();
   }
 

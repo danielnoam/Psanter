@@ -99,8 +99,14 @@ watches it and reloads a lesson when you save it in your editor.
 - Glow and sparks on the keys (subtle, full or off; off when Windows asks
   for less motion).
 - A video (WebM) of the falling notes with the app's sound.
-- Light and dark themes, and a colour editor for both, with a readability
-  check and colours you can copy and paste.
+- A desktop window: a menu bar (File, View, Practice, Drills, Help, with
+  Alt+letter and the arrow keys), the play controls in a toolbar, a status
+  bar with the piano and today's minutes.
+- The library as a table (name, kind, last practised, best tempo, review)
+  with a details pane, and pages for review, today's practice, drills and
+  progress.
+- Dark (the default) and light themes, and a colour editor for both, with
+  a readability check and colours you can copy and paste.
 
 ### Playing it
 - Any MIDI piano (Web MIDI), with the app's notes sent back to it.

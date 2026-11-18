@@ -106,7 +106,8 @@
   // The DOM: nested flex boxes, a handle between siblings. mount(id)
   // returns the panel's element (kept and moved, never rebuilt); onChange
   // gets the new tree after a drag.
-  function render(container, tree, { mount, onChange, editing = false, label = (id) => id, onDrop }) {
+  // head(id), if given, is a kept element shown in the panel's title bar.
+  function render(container, tree, { mount, onChange, editing = false, label = (id) => id, head, onDrop }) {
     container.replaceChildren();
     if (!tree) return;
     function build(n, path) {
@@ -114,7 +115,15 @@
         const cell = document.createElement("section");
         cell.className = "panel";
         cell.dataset.panel = n;
-        cell.appendChild(mount(n));
+        const bar = document.createElement("div");
+        bar.className = "panel-title";
+        const name = document.createElement("strong");
+        name.textContent = label(n);
+        bar.appendChild(name);
+        const extra = head && head(n);
+        if (extra) bar.appendChild(extra);
+        cell.setAttribute("aria-label", label(n));
+        cell.append(bar, mount(n));
         if (editing) cell.appendChild(dropZones(n));
         return cell;
       }

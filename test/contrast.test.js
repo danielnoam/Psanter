@@ -14,10 +14,12 @@ function test(name, fn) {
 }
 
 const css = fs.readFileSync(path.join(__dirname, "..", "src", "styles.css"), "utf8");
-const THEMES = { light: ":root", dark: ':root[data-theme="dark"]' };
+const THEMES = { dark: ":root", light: ':root[data-theme="light"]' };
 const PAIRS = [
   ["text", "bg"], ["text", "surface"], ["text-dim", "bg"], ["text-dim", "surface"],
-  ["accent", "bg", "ui"], ["line", "bg", "ui"], ["line", "surface", "ui"],
+  ["text", "surface-2"], ["text-dim", "surface-2"], ["text", "field"], ["text", "menu"], ["text-dim", "menu"],
+  ["accent-text", "accent"], ["score-ink", "score-paper"],
+  ["accent", "bg", "ui"], ["accent", "surface", "ui"], ["accent", "field", "ui"], ["line", "bg", "ui"], ["line", "surface", "ui"],
 ];
 
 test("every theme's pairs pass WCAG AA", () => {

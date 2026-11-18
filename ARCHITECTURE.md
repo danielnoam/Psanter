@@ -42,6 +42,7 @@ src/score.js         score adapters: abcjs, OSMD, none; each returns a song
 src/roll.js          falling notes and the keyboard, one canvas
 src/timeline.js      the bars strip: seek, drag a loop
 src/layout.js        the panel split tree: normalise, place, resize, render
+src/menus.js         the menu bar: menus built on open, Alt+letter, arrows, Esc
 src/library.js       courses: built-in, folders (File System Access), single files
 src/practice.js      one practice session: engine + score + roll + sound; transpose, auto speed-up, free play
 src/progress.js      time per day, runs, best tempo and weak bars (pure, over a store)
@@ -106,6 +107,15 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
   no build step. Updating one is replacing its file.
 
 ## Traps
+
+- `settings.lookVersion`: the first start on the desktop look (2) drops
+  the saved panel layout and turns "system" into dark. Bump it only for a
+  change that needs the same reset.
+- The score's SVG text takes the CSS `color`, so `.score-abc`/`.score-xml`
+  set `color: var(--score-ink)`; without it titles draw in the UI's text
+  colour on the paper.
+- menus.js listens for keys in the capture phase after app.js's shortcut
+  handler, so that handler returns while a menu is open (`menu.open`).
 
 - The app's panels: `PANELS` in app.js names them; a saved layout with an
   unknown panel drops it (`layout.normalize`), so renaming one resets it
