@@ -79,4 +79,6 @@ change is shown or explained to Daniel first and waits for his OK.
   `src/app.js`, every `?v=` in `index.html` and `CACHE` in `sw.js`, and
   folds `changes/` into CHANGELOG.md. New feature: minor; fix: patch.
 - The Windows zip is built by hand: Actions → Windows app → Run
-  workflow. It's the run's artifact; nothing is published.
+  workflow. That leaves the run's artifacts only. A merge to main with a
+  new APP_VERSION publishes the `app-v<version>` release (zip, Piano.exe,
+  Piano.exe.sig) by itself; the in-app updater reads it.

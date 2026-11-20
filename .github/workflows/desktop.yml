@@ -3,29 +3,59 @@
 # It's portable: its data goes in a Data folder beside it, and it updates
 # itself from the latest release.
 #
-# Runs only by hand (Actions → Windows app → Run workflow) until Daniel asks
-# for releases: then it also runs on a merge with a new APP_VERSION and
-# attaches the zip to that version's release. The run's artifact is the
-# Piano folder itself: GitHub zips every artifact, so uploading the zip
-# would put a zip inside the download.
+# A merge to main whose APP_VERSION has no app-v<version> release yet is a
+# release: it builds, signs and publishes app-v<version> with the zip,
+# Piano.exe and Piano.exe.sig (what the in-app updater fetches). Other
+# merges don't build. Run by hand (Actions → Windows app → Run workflow) it
+# only leaves artifacts. The run's artifact is the Piano folder itself:
+# GitHub zips every artifact, so uploading the zip would put a zip inside
+# the download.
 name: Windows app
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: windows-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.g.outputs.build }}
+      release: ${{ steps.g.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: g
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="$(node -p "require('./tools/build-www').appVersion()")"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"; echo "release=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/app-v$V" >/dev/null 2>&1; then
+            echo "app-v$V is already released: this merge isn't a release, so no build"
+            echo "build=false" >> "$GITHUB_OUTPUT"; echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"; echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   tests:
+    needs: gate
+    if: needs.gate.outputs.build == 'true'
     uses: ./.github/workflows/tests.yml
 
   build:
-    needs: tests
+    needs: [gate, tests]
     runs-on: windows-latest
     env:
       HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
@@ -97,3 +127,15 @@ jobs:
         with:
           name: Piano-${{ env.V }}-update
           path: out/update/
+
+      # A release without a signed Piano.exe would never reach the updater.
+      - name: Publish the release
+        if: needs.gate.outputs.release == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$HAS_KEY" != true ]; then echo "::error::No signing key: a release needs Piano.exe.sig"; exit 1; fi
+          awk -v h="## [$V]" 'index($0,h)==1{on=1;next} on&&/^## /{exit} on' CHANGELOG.md > notes.md
+          gh release create "app-v$V" "out/Piano-$V-windows.zip" out/update/Piano.exe out/update/Piano.exe.sig \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Piano $V" --notes-file notes.md --latest
