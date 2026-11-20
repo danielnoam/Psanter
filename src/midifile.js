@@ -132,22 +132,28 @@
   }
 
   // A recording ([{midi, ms, dur, vel}]) as a format-0 file at 120 bpm.
+  // notes, or a list of layers (each a list of notes) for one track each.
   function write(notes) {
     const division = 480, msPerTick = 500 / division;
-    const ev = [];
-    for (const n of notes) {
-      ev.push({ t: Math.round(n.ms / msPerTick), d: [0x90, n.midi, Math.max(1, Math.min(127, n.vel || 80))] });
-      ev.push({ t: Math.round((n.ms + Math.max(10, n.dur)) / msPerTick), d: [0x80, n.midi, 0] });
-    }
-    ev.sort((a, c) => a.t - c.t || a.d[0] - c.d[0]);
-    const body = [0x00, 0xff, 0x51, 0x03, 0x07, 0xa1, 0x20];
-    let last = 0;
+    const layers = Array.isArray(notes[0]) ? notes : [notes];
     const vlq = (v) => { const out = [v & 0x7f]; while ((v >>= 7)) out.unshift((v & 0x7f) | 0x80); return out; };
-    for (const e of ev) { body.push(...vlq(e.t - last), ...e.d); last = e.t; }
-    body.push(0x00, 0xff, 0x2f, 0x00);
-    const head = [0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, division >> 8, division & 0xff];
-    const len = body.length;
-    return new Uint8Array([...head, 0x4d, 0x54, 0x72, 0x6b, len >>> 24, (len >> 16) & 0xff, (len >> 8) & 0xff, len & 0xff, ...body]);
+    const track = (list, tempo) => {
+      const ev = [];
+      for (const n of list) {
+        ev.push({ t: Math.round(n.ms / msPerTick), d: [0x90, n.midi, Math.max(1, Math.min(127, n.vel || 80))] });
+        ev.push({ t: Math.round((n.ms + Math.max(10, n.dur)) / msPerTick), d: [0x80, n.midi, 0] });
+      }
+      ev.sort((a, c) => a.t - c.t || a.d[0] - c.d[0]);
+      const body = tempo ? [0x00, 0xff, 0x51, 0x03, 0x07, 0xa1, 0x20] : [];
+      let last = 0;
+      for (const e of ev) { body.push(...vlq(e.t - last), ...e.d); last = e.t; }
+      body.push(0x00, 0xff, 0x2f, 0x00);
+      const len = body.length;
+      return [0x4d, 0x54, 0x72, 0x6b, len >>> 24, (len >> 16) & 0xff, (len >> 8) & 0xff, len & 0xff, ...body];
+    };
+    const n = layers.length;
+    const head = [0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, n > 1 ? 1 : 0, 0, n, division >> 8, division & 0xff];
+    return new Uint8Array([...head, ...layers.flatMap((l, i) => track(l, i === 0))]);
   }
 
   window.Piano = window.Piano || {};

@@ -33,7 +33,8 @@ src/music.js         note names, the song model (steps, beats, bars), transpose
 src/hands.js         which hand plays each note of a one-track MIDI file (pure)
 src/midifile.js      reads and writes Standard MIDI Files; skips empty lead-in bars
 src/lesson.js        front matter, block options, links: everything about lesson text
-src/engine.js        the practice engine: wait/flow, hands, loops, metronome, results
+src/engine.js        the practice engine: wait/flow/recital/watch, hands, loops, metronome, results
+src/recital.js       recital scoring: points, combo, stars (pure, fed the engine's events)
 src/touch.js         what comes from the piano first: touch curve, light-touch floor, double notes, port names, key delay (pure)
 src/midi.js          Web MIDI in and out, lit keys, and the computer keyboard as a piano
 src/synth.js         the app's piano: Salamander samples (made sound until they load), pedal, room
@@ -48,7 +49,7 @@ src/library.js       courses: built-in, folders (File System Access), single fil
 src/practice.js      one practice session: engine + score + roll + sound; transpose, auto speed-up, free play
 src/progress.js      time per day, runs, best tempo and weak bars (pure, over a store)
 src/hotkeys.js       rebindable shortcuts, computer keys and piano keys (pure)
-src/recorder.js      what you play, as notes for midifile.write
+src/recorder.js      what you play, as notes for midifile.write; layers keep their start
 src/theme.js         the colour editor's tokens, its JSON and the readability check
 src/pdfview.js       the book panel: pdf.js, loaded the first time a book opens
 src/plan.js          a piece's practice plan: sections × hands × speeds (pure)
@@ -59,7 +60,7 @@ src/editor.js        the lesson editor: text, drafts, notes from the piano into 
 src/effects.js       glow over held keys and sparks where notes land (roll.setEffects)
 src/vendor/          abcjs, osmd, markdown-it, pdfjs, each with its licence
 src/keel/            from keel: errlog, platform, i18n, releases, motion (+ unused qr, github, drive)
-lessons/             the built-in courses, getting-started (with an example PDF book) and first-year; index.json lists them
+lessons/             the built-in courses, getting-started (with an example PDF book), first-year and songs; index.json lists them
 test/                engine, lesson, layout, progress, hotkeys, recorder, theme, abcwrite, score, plan, keys and keel's checks; run-all.js runs them
 server.js            the local server: this computer only (from keel)
 tools/build-www.js   copies sw.js's ASSETS into www-desktop/ for Tauri

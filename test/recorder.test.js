@@ -34,4 +34,20 @@ test("a recording writes a MIDI file that reads back the same", () => {
   assert.deepStrictEqual(song.notes.map((n) => [n.midi, Math.round(n.ms), Math.round(n.dur)]), [[60, 0, 500], [67, 500, 500]]);
 });
 
+test("a layer keeps its place from when recording started", () => {
+  const r = recorder.create(); r.start(1000, { keepStart: true });
+  r.note(48, true, 80, 1500); r.note(48, false, 0, 2000);
+  assert.strictEqual(r.stop(2100)[0].ms, 500);
+});
+
+test("layers write one track each and read back together", () => {
+  const a = [{ midi: 60, ms: 0, dur: 500, vel: 80 }, { midi: 62, ms: 500, dur: 500, vel: 80 }];
+  const b = [{ midi: 48, ms: 0, dur: 1000, vel: 70 }];
+  const bytes = midifile.write([a, b]);
+  assert.strictEqual(bytes[9], 1, "format 1");
+  assert.strictEqual(bytes[11], 2, "two tracks");
+  const song = midifile.parse(bytes, "take");
+  assert.deepStrictEqual(song.notes.map((n) => [n.midi, Math.round(n.ms)]).sort((x, y) => x[1] - y[1] || x[0] - y[0]), [[48, 0], [60, 0], [62, 500]]);
+});
+
 console.log(passed + " passed");

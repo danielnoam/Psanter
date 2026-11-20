@@ -302,6 +302,12 @@ td .due { color: var(--late); }
 .details dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2) var(--space-4); }
 .details dt { color: var(--text-dim); }
 .details dd { margin: 0; font-variant-numeric: tabular-nums; }
+.stars { color: var(--accent); white-space: nowrap; }
+table.files .stars { font-size: 11px; }
+.stars.big { font-size: 28px; line-height: 1; }
+.recital-done dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2) var(--space-4); }
+.recital-done dt { color: var(--text-dim); }
+.recital-done dd { margin: 0; font-variant-numeric: tabular-nums; }
 .details .row { gap: var(--space-2); }
 .details .hint { color: var(--text-dim); font-size: 12px; }
 .details .empty { color: var(--text-dim); margin: auto 0; text-align: center; }

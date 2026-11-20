@@ -44,6 +44,20 @@
         "25-jingle-bells.md",
         "26-loud-and-soft.md"
       ]
+    },
+    {
+      "id": "songs",
+      "title": "Songs",
+      "files": [
+        "01-twinkle.md",
+        "02-frere-jacques.md",
+        "03-amazing-grace.md",
+        "04-auld-lang-syne.md",
+        "05-greensleeves.md",
+        "06-fur-elise.md",
+        "07-canon-in-d.md",
+        "08-prelude-in-c.md"
+      ]
     }
   ]
 }

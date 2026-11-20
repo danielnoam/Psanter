@@ -74,8 +74,12 @@ watches it and reloads a lesson when you save it in your editor.
   plays it, timing counts), and by ear (the app plays, you play it back).
 - Today's practice: a warm-up scale in the key of the day, a drill in that
   key, then your piece, timed to your daily goal.
-- Two built-in courses: Getting started, and A first year (25 lessons on
-  reading, rhythm, scales and chords).
+- Three built-in courses: Getting started, A first year (26 lessons on
+  reading, rhythm, scales and chords) and Songs (eight public-domain
+  pieces in easy two-hand arrangements).
+- Recital: play the whole piece without stopping for points, a combo for
+  notes in a row and up to five stars; the best stars show in the library.
+- Watch and listen: the app plays the piece while you follow it.
 
 ### Progress
 - Each run and loop pass: right, late, missed, wrong, and how far off the
@@ -83,6 +87,8 @@ watches it and reloads a lesson when you save it in your editor.
   you up, shaded on the score, with a button to loop one.
 - Minutes per day for the last two weeks, a daily goal, and days in a row
   that met it.
+- Recording in layers: record one hand, then another over it while the
+  first plays back; saved as one MIDI file with a track per layer.
 - Your last take: hear it with or without the music, a timing graph of
   each note, and loud and soft against the p and f marks.
 - Time to review: learned pieces come back after 1, 3, 7, 14, 30 and 60
