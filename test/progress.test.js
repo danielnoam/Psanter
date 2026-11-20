@@ -57,4 +57,23 @@ test("a broken save starts fresh", () => {
   assert.strictEqual(p.today("2026-11-17"), 0);
 });
 
+test("learned pieces come back for review, further apart each time", () => {
+  const p = progress.create(memory(null));
+  const run = (acc, day) => p.addRun("c|song", "Song", { speed: 1, mode: "flow", stats: stats(acc), clean: true, kind: "run" }, day);
+  run(80, "2026-11-01");
+  assert.strictEqual(p.piece("c|song").review, undefined, "not learned yet");
+  run(95, "2026-11-02");
+  assert.deepStrictEqual(p.piece("c|song").review, { level: 0, due: "2026-11-03" });
+  assert.deepStrictEqual(p.dueForReview("2026-11-02"), []);
+  assert.strictEqual(p.dueForReview("2026-11-03")[0].key, "c|song");
+  run(95, "2026-11-02");
+  assert.strictEqual(p.piece("c|song").review.level, 0, "a run before the due day doesn't count");
+  run(95, "2026-11-03");
+  assert.deepStrictEqual(p.piece("c|song").review, { level: 1, due: "2026-11-06" });
+  run(60, "2026-11-30");
+  assert.deepStrictEqual(p.piece("c|song").review, { level: 0, due: "2026-12-01" });
+  p.addRun("drill|x", "Drill", { speed: 1, mode: "flow", stats: stats(100), clean: true, kind: "run" }, "2026-11-01");
+  assert.strictEqual(p.piece("drill|x").review, undefined, "drills aren't reviewed");
+});
+
 console.log(passed + " passed");

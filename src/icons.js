@@ -2,6 +2,9 @@
 // SVG elements so nothing needs innerHTML. icon("play") returns an <svg>.
 (function () {
   const P = {
+    piano: [["path", { d: "M18.5 8c-1.4 0-2.6-.8-3.2-2A6.87 6.87 0 0 0 2 9v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-8.5C22 9.6 20.4 8 18.5 8" }], ["path", { d: "M2 14h20" }], ["path", { d: "M6 14v4" }], ["path", { d: "M10 14v4" }], ["path", { d: "M14 14v4" }], ["path", { d: "M18 14v4" }]],
+    volume: [["path", { d: "M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" }], ["path", { d: "M16 9a5 5 0 0 1 0 6" }], ["path", { d: "M19.364 18.364a9 9 0 0 0 0-12.728" }]],
+    info: [["circle", { cx: 12, cy: 12, r: 10 }], ["path", { d: "M12 16v-4" }], ["path", { d: "M12 8h.01" }]],
     play: [["polygon", { points: "6 3 20 12 6 21 6 3" }]],
     pause: [["rect", { x: 14, y: 4, width: 4, height: 16, rx: 1 }], ["rect", { x: 6, y: 4, width: 4, height: 16, rx: 1 }]],
     "skip-back": [["polygon", { points: "19 20 9 12 19 4 19 20" }], ["line", { x1: 5, x2: 5, y1: 19, y2: 5 }]],

@@ -28,6 +28,9 @@ const ASSETS = [
   "./src/recorder.js",
   "./src/theme.js",
   "./src/abcwrite.js",
+  "./src/plan.js",
+  "./src/chords.js",
+  "./src/takes.js",
   "./src/effects.js",
   "./src/editor.js",
   "./src/roll.js",
@@ -110,6 +113,7 @@ const ASSETS = [
   "./lessons/first-year/23-melody-and-chords.md",
   "./lessons/first-year/24-minor-chords.md",
   "./lessons/first-year/25-jingle-bells.md",
+  "./lessons/first-year/26-loud-and-soft.md",
 ];
 
 self.addEventListener("install", (e) => {

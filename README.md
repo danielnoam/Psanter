@@ -51,7 +51,10 @@ watches it and reloads a lesson when you save it in your editor.
   left out, kept per file.
 - Timing calibration: tap along with clicks and the delay between hearing
   a note and the app getting yours is taken off when judging.
-- Free play, and recording anything you play as a MIDI file.
+- Free play, with the chord you hold named, and recording anything you
+  play as a MIDI file.
+- A practice plan per piece: sections, each hand then both, 60% up to full
+  speed, then the whole piece; a clean loop pass moves you on.
 
 ### Writing and reading
 - A lesson editor beside the lesson, with the lesson as its live preview.
@@ -73,6 +76,10 @@ watches it and reloads a lesson when you save it in your editor.
   you up, shaded on the score, with a button to loop one.
 - Minutes per day for the last two weeks, a daily goal, and days in a row
   that met it.
+- Your last take: hear it with or without the music, a timing graph of
+  each note, and loud and soft against the p and f marks.
+- Time to review: learned pieces come back after 1, 3, 7, 14, 30 and 60
+  days.
 
 ### Seeing it
 - The score (abcjs for ABC, OpenSheetMusicDisplay for MusicXML) follows
