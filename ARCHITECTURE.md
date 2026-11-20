@@ -30,9 +30,11 @@ src/app.js           the app: screens, lesson rendering, transport, settings; AP
 src/styles.css       the tokens per theme, then the styles
 src/icons.js         Lucide icons, one map
 src/music.js         note names, the song model (steps, beats, bars), transpose
-src/midifile.js      reads and writes Standard MIDI Files
+src/hands.js         which hand plays each note of a one-track MIDI file (pure)
+src/midifile.js      reads and writes Standard MIDI Files; skips empty lead-in bars
 src/lesson.js        front matter, block options, links: everything about lesson text
 src/engine.js        the practice engine: wait/flow, hands, loops, metronome, results
+src/touch.js         what comes from the piano first: touch curve, light-touch floor, double notes, port names, key delay (pure)
 src/midi.js          Web MIDI in and out, lit keys, and the computer keyboard as a piano
 src/synth.js         the app's piano: Salamander samples (made sound until they load), pedal, room
 src/sounds/piano/    30 Salamander Grand Piano MP3s (CC-BY 3.0, LICENSE.md), one every 3 semitones
@@ -48,7 +50,7 @@ src/recorder.js      what you play, as notes for midifile.write
 src/theme.js         the colour editor's tokens, its JSON and the readability check
 src/pdfview.js       the book panel: pdf.js, loaded the first time a book opens
 src/plan.js          a piece's practice plan: sections × hands × speeds (pure)
-src/chords.js        names the chord under your fingers (pure)
+src/chords.js        names the chord under your fingers, and a song's chords beat by beat (pure)
 src/takes.js         a run's notes for replay, loud-and-soft judging, the replay scheduler
 src/abcwrite.js      writing ABC: a note in a key (bar accidentals carried); sight-reading, scale, chord, rhythm and ear exercises (pure)
 src/editor.js        the lesson editor: text, drafts, notes from the piano into the music block
@@ -56,7 +58,7 @@ src/effects.js       glow over held keys and sparks where notes land (roll.setEf
 src/vendor/          abcjs, osmd, markdown-it, pdfjs, each with its licence
 src/keel/            from keel: errlog, platform, i18n, releases, motion (+ unused qr, github, drive)
 lessons/             the built-in courses, getting-started (with an example PDF book) and first-year; index.json lists them
-test/                engine, lesson, layout, progress, hotkeys, recorder, theme, abcwrite, score, plan and keel's checks; run-all.js runs them
+test/                engine, lesson, layout, progress, hotkeys, recorder, theme, abcwrite, score, plan, keys and keel's checks; run-all.js runs them
 server.js            the local server: this computer only (from keel)
 tools/build-www.js   copies sw.js's ASSETS into www-desktop/ for Tauri
 tools/               release.js, keel-sync.js, keel-checks.js (from keel)
@@ -133,6 +135,16 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 - `music.transpose` rebuilds the song; it copies the steps' `measure` and
   a MIDI file's `tracks` back on, since the weak bars and the tracks panel
   read them.
+- Key times are the MIDI message's `timeStamp` (same clock as
+  `performance.now()`), not when the handler ran; one more than 1 s off
+  falls back to now.
+- Touch response, the light-touch floor and the double-note filter run in
+  midi.js before `routeNote`; a dropped press also drops one release of
+  that key, or the note would end early or hang.
+- The master has a soft clip (a WaveShaper), not a compressor: a
+  DynamicsCompressor delays everything through it about 6 ms.
+- The hand split and the skipped bars happen in `midifile.parse`, so a
+  setting changed while a file is open applies from the next one opened.
 - abcjs note timings are matched to notes by `startChar`, not by order.
 - Wait mode credits the next required note even when pressed early and
   jumps the song to it; flow mode only within 250 ms.

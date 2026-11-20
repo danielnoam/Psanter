@@ -33,6 +33,43 @@
     return null;
   }
 
+  // The chords of a song, beat by beat: [{ms, name}], a new entry only
+  // where the chord changes. A beat's notes are tried in turn: the ones
+  // held through it, the left hand's, the ones on the beat, then all, so
+  // a melody's passing notes don't hide the chord under them.
+  function sequence(song) {
+    if (!song || !song.notes.length) return [];
+    const beats = song.beats.filter((b) => b.ms < song.end);
+    const out = [];
+    let at = 0;
+    const notes = song.notes;
+    beats.forEach((b, i) => {
+      const end = beats[i + 1] ? beats[i + 1].ms : song.end;
+      const len = end - b.ms;
+      while (at < notes.length && notes[at].ms + 30000 < b.ms) at++;
+      const sounding = [];
+      for (let j = at; j < notes.length && notes[j].ms < end - 1; j++) if (notes[j].ms + notes[j].dur > b.ms + 1) sounding.push(notes[j]);
+      if (!sounding.length) return;
+      const held = sounding.filter((n) => n.ms < b.ms - 1 || n.dur > len * 1.05);
+      const tries = [held, sounding.filter((n) => n.hand === "left"), sounding.filter((n) => n.ms <= b.ms + 40), sounding];
+      let c = null;
+      for (const set of tries) {
+        if (new Set(set.map((n) => n.midi % 12)).size < 3) continue;
+        c = name(set.map((n) => n.midi));
+        if (c) break;
+      }
+      if (c && (!out.length || out[out.length - 1].name !== c.name)) out.push({ ms: b.ms, name: c.name });
+    });
+    return out;
+  }
+
+  // The entry in force at a time, or -1 before the first.
+  function indexAt(seq, ms) {
+    let lo = 0, hi = seq.length - 1, at = -1;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (seq[mid].ms <= ms + 0.5) { at = mid; lo = mid + 1; } else hi = mid - 1; }
+    return at;
+  }
+
   window.Piano = window.Piano || {};
-  window.Piano.chords = { name, NAMES };
+  window.Piano.chords = { name, sequence, indexAt, NAMES };
 })();

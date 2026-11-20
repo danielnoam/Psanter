@@ -2,7 +2,7 @@
 // score, the falling notes and the timeline, with your notes coming in and
 // the app's notes going out. app.js builds the screen around it.
 (function () {
-  function create({ scoreEl, rollCanvas, timelineCanvas, midi, synth, settings, onChange, onEvent, onExpected }) {
+  function create({ scoreEl, rollCanvas, timelineCanvas, midi, synth, settings, onChange, onEvent, onExpected, onFrame }) {
     const P = window.Piano;
     const engine = P.engine.create();
     const roll = P.roll.create(rollCanvas);
@@ -42,7 +42,7 @@
       else score = P.score.none(scoreEl, t.message || "");
       let s;
       if (t.kind === "free") { await score.load(); s = null; }
-      else if (t.kind === "midi") { await score.load(); s = P.midifile.parse(t.data, t.title, t.opts && t.opts.tracks); }
+      else if (t.kind === "midi") { await score.load(); s = P.midifile.parse(t.data, t.title, t.opts && t.opts.tracks, midiOpts()); }
       else s = await score.load(t.data, { title: t.title, transpose: t.kind === "abc" ? (t.opts && +t.opts.transpose) || 0 : 0 });
       if (t.kind !== "free" && (!s || !s.notes.length)) throw new Error("no notes to play in this piece");
       target = t; base = s; semis = (t.opts && +t.opts.transpose) || 0;
@@ -137,13 +137,15 @@
       if (ui) changed();
     }
 
+    function midiOpts() { return { skipLead: settings.get("skipEmptyBars") !== false }; }
+
     function stopSound() { midi.allOff(); synth.allOff(); for (const [m, k] of [...held]) if (String(k).startsWith("auto")) held.delete(m); }
 
     function frame(now) {
       raf = 0;
       if (engine.playing) handle(engine.update(now));
       const rising = (!song && trail.length && pruneTrail(now)) || (fx && fx.busy(now));
-      if (dirty || engine.playing || rising) draw(now);
+      if (dirty || engine.playing || rising) { draw(now); if (onFrame) onFrame(); }
       dirty = false;
       if (engine.playing || rising) kick();
     }
@@ -211,7 +213,7 @@
       trackHands(list) {
         if (!target || target.kind !== "midi") return;
         target = { ...target, opts: { ...(target.opts || {}), tracks: list } };
-        swap(P.midifile.parse(target.data, target.title, list));
+        swap(P.midifile.parse(target.data, target.title, list, midiOpts()));
       },
       // Loops bars `from` to `to` (measure numbers in the score) and goes
       // to the start of them.

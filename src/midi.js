@@ -6,15 +6,25 @@
   // Z and X move the octave.
   const KEYS = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ";": 16, "'": 17 };
 
-  function create({ onNote, onDevices, onPedal }) {
+  function create({ onNote, onDevices, onPedal, touch }) {
     let access = null, output = null, outputId = null;
     let status = "off"; // off | asking | on | denied | unsupported
     const sounding = new Set();
+    const T = window.Piano.touch;
+    const keys = T.filter(touch || (() => ({})));
+    const lag = T.delays();
 
+    // One entry per keyboard, however many ports Windows lists it as.
     function devices() {
       if (!access) return { inputs: [], outputs: [], status };
-      const list = (m) => [...m.values()].filter((p) => p.state !== "disconnected").map((p) => ({ id: p.id, name: p.name || "MIDI device" }));
-      return { inputs: list(access.inputs), outputs: list(access.outputs), status, outputId };
+      const live = (m) => [...m.values()].filter((p) => p.state !== "disconnected");
+      const inputs = [], seen = new Set();
+      for (const p of live(access.inputs)) {
+        const name = T.deviceName(p.name);
+        if (!seen.has(name)) { seen.add(name); inputs.push({ id: p.id, name, ports: 1 }); } else inputs.find((i) => i.name === name).ports++;
+      }
+      const outputs = live(access.outputs).map((p) => ({ id: p.id, name: T.deviceName(p.name) }));
+      return { inputs, outputs, status, outputId };
     }
 
     function wire() {
@@ -23,12 +33,19 @@
       if (onDevices) onDevices(devices());
     }
 
+    // The time the message arrived, not when we got to it: the judging
+    // is then as exact as the keyboard.
     function onMessage(e) {
       const [s, d1, d2] = e.data;
       const hi = s & 0xf0;
-      const now = performance.now();
-      if (hi === 0x90 && d2 > 0) onNote(d1, true, d2, now, "midi");
-      else if (hi === 0x80 || (hi === 0x90 && d2 === 0)) onNote(d1, false, 0, now, "midi");
+      const handled = performance.now();
+      const at = e.timeStamp > 0 && handled - e.timeStamp >= 0 && handled - e.timeStamp < 1000 ? e.timeStamp : handled;
+      const on = hi === 0x90 && d2 > 0, off = hi === 0x80 || (hi === 0x90 && d2 === 0);
+      if (on || off) {
+        if (on) lag.add(handled - at);
+        const vel = keys.input(d1, on, d2, at);
+        if (vel != null) onNote(d1, on, vel, at, "midi");
+      }
       else if (hi === 0xb0 && d1 === 64 && onPedal) onPedal(d2 >= 64);
     }
 
@@ -91,7 +108,11 @@
       } catch (e) { lit.clear(); }
     }
 
-    return { start, devices, setOutput, send, allOff, light, get hasOutput() { return !!output; }, get status() { return status; } };
+    // Raw press → handled: { average, worst, count } in ms, or null before
+    // any key.
+    function inputDelay() { return lag.count ? { average: lag.average(), worst: lag.worst(), count: lag.count } : null; }
+
+    return { start, devices, setOutput, send, allOff, light, inputDelay, resetKeys: () => keys.reset(), get hasOutput() { return !!output; }, get status() { return status; } };
   }
 
   // The typing keyboard as a piano. Returns a function that turns it off.
