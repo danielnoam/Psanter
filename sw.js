@@ -21,6 +21,7 @@ const ASSETS = [
   "./src/touch.js",
   "./src/midi.js",
   "./src/hands.js",
+  "./src/menus.js",
   "./src/midifile.js",
   "./src/music.js",
   "./src/pdfview.js",

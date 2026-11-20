@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://api.github.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#F6F5F2">
+  <meta name="theme-color" content="#232428">
   <title>Piano</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -12,22 +12,26 @@
   <link rel="stylesheet" href="src/styles.css?v=0.1.0">
 </head>
 <body>
-  <header class="topbar">
-    <button id="back" class="icon-btn" type="button" hidden></button>
-    <h1 id="title" class="title">Piano</h1>
+  <nav id="menubar" class="menubar" role="menubar" aria-label="Menu">
     <span class="spacer"></span>
-    <span id="status" class="status" role="status" aria-live="polite"></span>
-    <button id="device" class="chip" type="button"></button>
-    <button id="settings-btn" class="icon-btn" type="button"></button>
-  </header>
+    <h1 id="title" class="title">Piano</h1>
+    <button id="settings-btn" class="icon-btn quiet" type="button"></button>
+  </nav>
 
   <main id="library" class="library"></main>
 
   <main id="lesson-screen" class="lesson-screen" hidden>
+    <div id="toolbar" class="toolbar" role="toolbar" aria-label="Play controls"></div>
+    <div id="timeline" class="timeline"></div>
     <div id="routine" class="routine" hidden></div>
     <div id="panels" class="panels"></div>
-    <footer id="transport" class="transport"></footer>
   </main>
+
+  <footer class="statusbar">
+    <button id="device" class="chip" type="button"></button>
+    <span id="status" class="status" role="status" aria-live="polite"></span>
+    <span id="today"></span>
+  </footer>
 
   <dialog id="settings" class="sheet" aria-labelledby="settings-title"></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
@@ -40,6 +44,7 @@
   <script src="src/vendor/abcjs.min.js?v=0.1.0"></script>
   <script src="src/vendor/osmd.min.js?v=0.1.0"></script>
   <script src="src/icons.js?v=0.1.0"></script>
+  <script src="src/menus.js?v=0.1.0"></script>
   <script src="src/music.js?v=0.1.0"></script>
   <script src="src/hands.js?v=0.1.0"></script>
   <script src="src/midifile.js?v=0.1.0"></script>
