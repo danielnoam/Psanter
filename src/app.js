@@ -1154,7 +1154,98 @@
     const list = el("div", "set-card");
     for (const [name, what] of credits) { const r = el("div", "set-row"); r.append(el("strong", null, name), el("span", "dim", what)); list.appendChild(r); }
     return page(t("About"), el("p", "dim", t("Piano, version {v}. A practice app for your own lessons, on this computer.", { v: APP_VERSION })),
-      el("h4", null, t("Made with")), list);
+      updatesGroup(), dataGroup(), el("h4", null, t("Made with")), list);
+  }
+
+  // ---- the Windows app: updates in place, and where the data lives (src-tauri/src/portable.rs) ----
+  const invoke = (cmd, args) => window.__TAURI__.core.invoke(cmd, args);
+  let update = null, updateState = "", dataLoc = null;
+  async function checkUpdate(byHand) {
+    if (!K.platform.desktop) return;
+    updateState = "checking"; if ($("settings").open) renderSettings();
+    try {
+      update = await invoke("update_check");
+      updateState = update ? "ready" : "current";
+      settings.set("updateChecked", Date.now());
+    } catch (e) {
+      updateState = "failed";
+      if (byHand) toast(t("Couldn't reach GitHub to check for updates: {why}", { why: String(e) }));
+    }
+    renderUpdateNotice();
+    if ($("settings").open) renderSettings();
+  }
+  async function installUpdate() {
+    if (!update) return;
+    updateState = "installing"; renderUpdateNotice(); if ($("settings").open) renderSettings();
+    progress.flush();
+    try { await invoke("update_install", { exe: update.exe, sig: update.sig }); }
+    catch (e) {
+      updateState = "ready"; renderUpdateNotice(); if ($("settings").open) renderSettings();
+      const why = String(e);
+      if (why === "readonly") toast(t("Piano can't write to its own folder, so it can't update itself here. Download the new version from GitHub."), 6000);
+      else if (why === "signature") toast(t("The download wasn't signed by Piano's key, so it wasn't installed."), 6000);
+      else if (why === "nokey") toast(t("This copy has no update key, so it can't check a download. Download the new version from GitHub."), 6000);
+      else toast(t("The update didn't install: {why}", { why }), 6000);
+    }
+  }
+  function renderUpdateNotice() {
+    const b = $("update");
+    b.hidden = !(update && (updateState === "ready" || updateState === "installing"));
+    if (!b.hidden) b.textContent = updateState === "installing" ? t("Updating to {v}…", { v: update.version }) : t("Version {v} is ready: update and restart", { v: update.version });
+    b.disabled = updateState === "installing";
+  }
+  function updatesGroup() {
+    if (!K.platform.desktop) return null;
+    const state = { checking: t("Checking…"), current: t("This is the newest version."), failed: t("Couldn't reach GitHub."), installing: t("Downloading and checking the signature…") }[updateState]
+      || (update ? t("Version {v} is ready.", { v: update.version }) : t("Checked when the app starts, once a day."));
+    const btns = el("div", "row");
+    if (update) {
+      btns.appendChild(button(t("Update and restart"), "btn primary", () => installUpdate()));
+      btns.appendChild(button(t("What's new"), "btn", () => K.platform.openOutside(update.page)));
+    } else btns.appendChild(button(t("Check now"), "btn", () => checkUpdate(true)));
+    return setGroup(t("Updates"), setting(t("Updates"), btns, state + " " + t("A new version replaces Piano.exe in its folder, only when it carries Piano's signature.")));
+  }
+  function dataGroup() {
+    if (!K.platform.desktop) return null;
+    if (!dataLoc) { invoke("data_location").then((l) => { dataLoc = l; if ($("settings").open) renderSettings(); }).catch(() => {}); return null; }
+    const names = { portable: t("With the app (portable)"), appdata: t("This computer's AppData"), custom: t("Another folder") };
+    const pick = select(Object.entries(names), dataLoc.mode, async (v) => {
+      let path = null;
+      if (v === "custom") {
+        try { path = await invoke("plugin:dialog|open", { options: { directory: true, title: t("Where should Piano keep your data?") } }); } catch (e) { path = null; }
+        if (!path) { pick.value = dataLoc.mode; return; }
+      }
+      if (!(await confirmMove(path || names[v]))) { pick.value = dataLoc.mode; return; }
+      progress.flush();
+      try { await invoke("set_data_location", { mode: v, path }); }
+      catch (e) {
+        pick.value = dataLoc.mode;
+        toast(String(e) === "readonly" ? t("Piano's folder is read-only, so the data can't live beside it.") : t("Piano can't write to that folder."), 6000);
+      }
+    });
+    pick.disabled = !dataLoc.exe_writable;
+    const hint = [t("Now in {path}.", { path: dataLoc.dir })];
+    if (dataLoc.problem === "readonly") hint.push(t("Piano's folder is read-only, so the data is in AppData."));
+    if (dataLoc.problem === "missing") hint.push(t("The folder you picked isn't there, so the data is in AppData for now."));
+    if (!dataLoc.exe_writable) hint.push(t("Move Piano to a folder you can write to, to choose."));
+    hint.push(t("Changing it copies your data over and restarts; the old copy stays."));
+    return setGroup(t("Your data"), setting(t("Keep settings and progress"), pick, hint.join(" ")));
+  }
+  function confirmMove(where) {
+    return new Promise((resolve) => {
+      const d = el("dialog", "sheet");
+      const head = el("div", "sheet-head"); head.appendChild(el("h2", null, t("Move your data?")));
+      const body = el("div", "sheet-body");
+      body.append(el("p", null, t("Piano restarts and copies your settings and progress to {where}. The old copy stays where it is.", { where })));
+      const row = el("div", "row");
+      const done = (v) => { d.close(); d.remove(); resolve(v); };
+      row.append(button(t("Move and restart"), "btn primary", () => done(true)), button(t("Cancel"), "btn", () => done(false)));
+      body.appendChild(row);
+      d.append(head, body);
+      d.addEventListener("cancel", () => done(false));
+      document.body.appendChild(d);
+      d.showModal();
+    });
   }
 
   // Where the time goes between a key and the sound: the keyboard's
@@ -2135,6 +2226,7 @@
       { label: t("Help"), items: () => [
         { label: t("Shortcuts"), run: () => openSettings("shortcuts") },
         { label: t("Check the delay"), run: () => openSettings("piano") },
+        K.platform.desktop ? { label: t("Check for updates"), run: () => { openSettings("about"); checkUpdate(true); } } : null,
         "-",
         { label: t("About"), run: () => openSettings("about") },
       ] },
@@ -2180,6 +2272,8 @@
     renderDevice();
     renderToday();
     await showLibrary();
+    $("update").addEventListener("click", () => installUpdate());
+    if (K.platform.desktop && Date.now() - (settings.get("updateChecked") || 0) > 20 * 3600 * 1000) setTimeout(() => checkUpdate(false), 4000);
   }
 
   // The web copy works offline through sw.js; the desktop app has its
