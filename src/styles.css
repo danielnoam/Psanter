@@ -28,6 +28,10 @@
   --key-white: #F4F3EF;
   --key-black: #1F201D;
   --key-line: #8A8D85;
+  --backdrop: rgba(0, 0, 0, 0.35);
+  --shadow: rgba(0, 0, 0, 0.18);
+  --shadow-strong: rgba(0, 0, 0, 0.25);
+  --page-paper: #FFFFFF;
   --font: system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-size: 15px;
   --space-1: 4px;
@@ -69,6 +73,9 @@
   --key-white: #E9E8E3;
   --key-black: #1A1B19;
   --key-line: #5C5F58;
+  --backdrop: rgba(0, 0, 0, 0.55);
+  --shadow: rgba(0, 0, 0, 0.4);
+  --shadow-strong: rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
 
@@ -170,7 +177,7 @@ label.check input { accent-color: var(--accent); width: 16px; height: 16px; }
 }
 .items li button:hover { background: var(--surface-2); }
 .items .meta { margin-inline-start: auto; font-size: 13px; color: var(--text-dim); }
-.items .sub { font-size: 12px; color: var(--text-dim); padding: var(--space-2) var(--space-4) 0; text-transform: uppercase; letter-spacing: 0.04em; }
+.items .sub { font-size: 13px; font-weight: 600; color: var(--text-dim); padding: var(--space-2) var(--space-4) 0;  }
 
 /* ---- lesson screen and panels ---- */
 .lesson-screen { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -272,14 +279,14 @@ dialog.sheet {
 }
 dialog#settings { width: min(880px, calc(100vw - 32px)); height: min(640px, calc(100vh - 64px)); overflow: hidden; }
 dialog#settings[open] { display: flex; flex-direction: column; }
-dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.35); }
+dialog.sheet::backdrop { background: var(--backdrop); }
 dialog.sheet[open] { animation: sheet-in var(--slow) var(--settle); }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
 .sheet-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line-soft); position: sticky; top: 0; background: var(--surface); z-index: 1; }
 .sheet-head h2 { margin: 0; font-size: 17px; flex: 1; }
 .sheet-body { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); overflow: auto; }
 .sheet-body section { display: flex; flex-direction: column; gap: var(--space-3); }
-.sheet-body h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); }
+.sheet-body h3 { margin: 0; font-size: 13px; color: var(--text-dim); }
 .row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
 .row > .field { flex: 1 1 160px; }
 
@@ -288,7 +295,7 @@ dialog.sheet[open] { animation: sheet-in var(--slow) var(--settle); }
 
 /* ---- stats ---- */
 .stats { flex: 1; overflow: auto; padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); font-size: 14px; }
-.stats h4 { margin: 0 0 var(--space-2); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 600; }
+.stats h4 { margin: 0 0 var(--space-2); font-size: 13px; color: var(--text-dim); font-weight: 600; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: var(--space-2); }
 .tile { background: var(--surface-2); border-radius: var(--radius-sm); padding: var(--space-2); display: flex; flex-direction: column; gap: 2px; }
 .tile strong { font-size: 18px; font-variant-numeric: tabular-nums; line-height: 1.2; }
@@ -313,7 +320,7 @@ dialog.sheet[open] { animation: sheet-in var(--slow) var(--settle); }
 .pdf-page { width: 5ch; text-align: center; }
 .pdf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-dim); padding-inline-start: var(--space-2); }
 .pdf-view { flex: 1; overflow: auto; background: var(--surface-2); padding: var(--space-2); }
-.pdf-view canvas { display: block; margin: 0 auto; background: #FFFFFF; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); }
+.pdf-view canvas { display: block; margin: 0 auto; background: var(--page-paper); box-shadow: 0 1px 4px var(--shadow); }
 
 /* ---- layout editor ---- */
 .layout-bar { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line-soft); background: var(--surface); flex-wrap: wrap; flex: none; }
@@ -332,7 +339,7 @@ dialog.sheet[open] { animation: sheet-in var(--slow) var(--settle); }
 .keys-table { display: grid; grid-template-columns: 1fr auto auto; gap: var(--space-1) var(--space-2); align-items: center; font-size: 14px; }
 .keys-table .btn { min-width: 84px; font-variant-numeric: tabular-nums; }
 .keys-table .btn.listening { border-color: var(--accent); color: var(--accent); }
-dialog.side { position: fixed; inset-block: 64px auto; inset-inline: auto 16px; margin: 0; width: min(360px, calc(100vw - 32px)); max-height: calc(100vh - 96px); overflow: auto; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25); z-index: 20; }
+dialog.side { position: fixed; inset-block: 64px auto; inset-inline: auto 16px; margin: 0; width: min(360px, calc(100vw - 32px)); max-height: calc(100vh - 96px); overflow: auto; box-shadow: 0 10px 40px var(--shadow-strong); z-index: 20; }
 .swatches { display: grid; grid-template-columns: 1fr auto; gap: var(--space-1) var(--space-3); align-items: center; font-size: 14px; }
 .swatches input[type="color"] { width: 44px; height: 28px; border: 1px solid var(--line-soft); border-radius: var(--radius-sm); background: var(--surface); padding: 2px; cursor: pointer; }
 .warn { color: var(--bad); font-size: 13px; }
@@ -352,7 +359,7 @@ textarea.json { width: 100%; min-height: 96px; border: 1px solid var(--line-soft
   border-radius: var(--radius);
   background: var(--text);
   color: var(--bg);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 6px 24px var(--shadow);
   animation: toast-in var(--slow) var(--settle);
   z-index: 10;
 }
@@ -381,12 +388,12 @@ progress.goal { width: 100%; height: 8px; accent-color: var(--accent); }
 .streak { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; }
 .streak .icon { color: var(--late); }
 .days-card { padding: var(--space-3) var(--space-4); border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line-soft); }
-.days-card h4 { margin: 0 0 var(--space-2); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 600; }
+.days-card h4 { margin: 0 0 var(--space-2); font-size: 13px; color: var(--text-dim); font-weight: 600; }
 .days-card .days { height: 72px; }
 .days-card p { margin: var(--space-2) 0; }
 
 .tracks { padding: 0 var(--space-5) var(--space-4); max-width: 60ch; }
-.tracks h3 { margin: 0 0 var(--space-2); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 600; }
+.tracks h3 { margin: 0 0 var(--space-2); font-size: 13px; color: var(--text-dim); font-weight: 600; }
 .track-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-1) 0; flex-wrap: wrap; }
 .track-name { font-weight: 600; min-width: 10ch; }
 .ear-box { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius); background: var(--surface-2); }
@@ -421,8 +428,8 @@ progress.goal { width: 100%; height: 8px; accent-color: var(--accent); }
 .settings-tab[aria-current="true"] { background: var(--surface-2); color: var(--text); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
 .settings-pane { overflow: auto; padding: var(--space-5); }
 .settings-page { display: flex; flex-direction: column; gap: var(--space-5); max-width: 620px; }
-.settings-page > h3 { margin: 0; font-size: 22px; text-transform: none; letter-spacing: 0; color: var(--text); font-weight: 600; }
-.settings-page h4 { margin: 0 0 var(--space-2); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 600; }
+.settings-page > h3 { margin: 0; font-size: 22px; color: var(--text); font-weight: 600; }
+.settings-page h4 { margin: 0 0 var(--space-2); font-size: 13px; color: var(--text-dim); font-weight: 600; }
 .set-card { border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--bg); }
 .set-row { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); min-height: 56px; }
 .set-row + .set-row { border-top: 1px solid var(--line-soft); }
