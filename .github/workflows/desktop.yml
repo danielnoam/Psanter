@@ -76,8 +76,13 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        # A secret piped in from Windows PowerShell can start with a byte
+        # order mark and end with a line break; neither is part of the key.
         run: |
           if [ ! -s src-tauri/updater.pub ]; then echo "::warning::src-tauri/updater.pub is empty: this build can't check updates"; fi
+          clean() { local v="${1#$'\xEF\xBB\xBF'}"; v="${v%$'\n'}"; printf '%s' "${v%$'\r'}"; }
+          export TAURI_SIGNING_PRIVATE_KEY="$(clean "$TAURI_SIGNING_PRIVATE_KEY")"
+          export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(clean "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD")"
           mkdir -p out/update
           cp out/Piano/Piano.exe out/update/Piano.exe
           npx tauri signer sign out/update/Piano.exe
