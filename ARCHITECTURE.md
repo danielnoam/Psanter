@@ -66,7 +66,7 @@ tools/build-www.js   copies sw.js's ASSETS into www-desktop/ for Tauri
 tools/               release.js, keel-sync.js, keel-checks.js (from keel)
 package.json         the Tauri CLI only
 src-tauri/           the Windows app: one window on the same files, MIDI allowed
-.github/workflows/   tests; desktop.yml builds the Windows zip by hand
+.github/workflows/   tests; desktop.yml builds the Windows zip and publishes a release when APP_VERSION is new
 ```
 
 www-desktop/ and src-tauri's icons are made in CI, never committed.

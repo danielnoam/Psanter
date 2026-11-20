@@ -16,7 +16,8 @@ in a Tauri window. Started from keel's template.
 ## Shipping
 
 - Windows only. No phone apps, no web deploy, no release until Daniel
-  says "release". The zip is built by hand (`desktop.yml`).
+  says "release". A merge with a new APP_VERSION publishes the release
+  (`desktop.yml`); a zip to try things is built by running it by hand.
 - Lines for the changelog go in `changes/<branch>.md`, never CHANGELOG.md.
 - Check a change in a browser with a simulated piano (the computer's
   keyboard or `PianoApp` in the console), not only the tests.
