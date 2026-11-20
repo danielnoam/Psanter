@@ -99,6 +99,9 @@ watches it and reloads a lesson when you save it in your editor.
 - Glow and sparks on the keys (subtle, full or off; off when Windows asks
   for less motion).
 - A video (WebM) of the falling notes with the app's sound.
+- Portable on Windows: unzip it anywhere, settings and progress stay in a
+  Data folder beside Piano.exe (or AppData, or a folder you pick, in
+  Settings → About), and it updates itself from the latest signed release.
 - A desktop window: a menu bar (File, View, Practice, Drills, Help, with
   Alt+letter and the arrow keys), the play controls in a toolbar, a status
   bar with the piano and today's minutes.

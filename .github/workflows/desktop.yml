@@ -1,5 +1,7 @@
 # The Windows app as a zip: unzip it anywhere and run Piano.exe. No
 # installer, nothing to set up (Windows 10 and 11 already have WebView2).
+# It's portable: its data goes in a Data folder beside it, and it updates
+# itself from the latest release.
 #
 # Runs only by hand (Actions → Windows app → Run workflow) until Daniel asks
 # for releases: then it also runs on a merge with a new APP_VERSION and
@@ -25,6 +27,8 @@ jobs:
   build:
     needs: tests
     runs-on: windows-latest
+    env:
+      HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,7 +67,28 @@ jobs:
           Copy-Item README.md out/Piano/README.md
           Compress-Archive -Path out/Piano -DestinationPath "out/Piano-$env:V-windows.zip"
 
+      # The portable updater (src-tauri/src/portable.rs) installs only a
+      # Piano.exe that carries this signature. A release attaches Piano.exe
+      # and Piano.exe.sig beside the zip.
+      - name: Sign for the updater
+        if: env.HAS_KEY == 'true'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ ! -s src-tauri/updater.pub ]; then echo "::warning::src-tauri/updater.pub is empty: this build can't check updates"; fi
+          mkdir -p out/update
+          cp out/Piano/Piano.exe out/update/Piano.exe
+          npx tauri signer sign out/update/Piano.exe
+
       - uses: actions/upload-artifact@v4
         with:
           name: Piano-${{ env.V }}-windows
           path: out/Piano/
+
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          name: Piano-${{ env.V }}-update
+          path: out/update/

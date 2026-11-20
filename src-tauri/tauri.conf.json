@@ -9,19 +9,7 @@
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [
-      {
-        "label": "main",
-        "title": "Piano",
-        "width": 1280,
-        "height": 840,
-        "minWidth": 900,
-        "minHeight": 600,
-        "backgroundColor": "#F6F5F2",
-        "dragDropEnabled": false,
-        "zoomHotkeysEnabled": true
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }

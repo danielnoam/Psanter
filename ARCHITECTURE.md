@@ -42,6 +42,7 @@ src/score.js         score adapters: abcjs, OSMD, none; each returns a song
 src/roll.js          falling notes and the keyboard, one canvas
 src/timeline.js      the bars strip: seek, drag a loop
 src/layout.js        the panel split tree: normalise, place, resize, render
+src-tauri/src/portable.rs  where the data lives (beside the exe by default) and the in-place updater
 src/menus.js         the menu bar: menus built on open, Alt+letter, arrows, Esc
 src/library.js       courses: built-in, folders (File System Access), single files
 src/practice.js      one practice session: engine + score + roll + sound; transpose, auto speed-up, free play
@@ -85,7 +86,16 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 - **Folders are read and written through File System Access.** The app
   keeps the folder handles in IndexedDB; Windows asks again after a
   restart when the permission lapsed.
-- **No updater, no installer.** A new version is a new zip.
+- **No installer; the zip updates itself** (`portable.rs`). It reads the
+  latest release from GitHub's API without a token, so the repo's releases
+  must be public. It installs only a Piano.exe whose minisign signature
+  matches `src-tauri/updater.pub`; the private key is the
+  `TAURI_SIGNING_PRIVATE_KEY` secret, used only by desktop.yml. A copy in a
+  read-only folder (Program Files) can't update and says so.
+- **Data beside the exe by default.** Anyone who can read the folder can
+  read the progress and settings in `Data\EBWebView`. Settings → About can
+  move it to AppData or another folder; the move copies and leaves the old
+  copy, so nothing is lost if it fails half-way.
 - **English only.** keel's i18n is loaded but there is no second language.
 - **Progress lives in this computer's storage** (localStorage
   `piano.progress`), not in the lesson folders: built-in lessons have no
@@ -108,6 +118,15 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 
 ## Traps
 
+- portable.rs decides the data folder before the window opens: the window
+  is built in `setup()` with `data_directory`, not in tauri.conf.json
+  (whose `windows` list is empty). The WebView keeps its files open while
+  it runs, so a move is written to piano-data.json and done on the next
+  start.
+- The updater swaps exes by renaming the running one to Piano.exe.old and
+  starts the new one through `cmd` a second later, after this one has
+  exited; started straight away, the one-copy check would hand it back to
+  the old process.
 - `settings.lookVersion`: the first start on the desktop look (2) drops
   the saved panel layout and turns "system" into dark. Bump it only for a
   change that needs the same reset.
