@@ -19,6 +19,8 @@
     const held = new Map(); // midi → "me" | "wrong" | "good" | "auto-left" | "auto-right"
     const mine = new Set(); // keys you're holding
     let lastResult = null;
+    // The recital's score, from the start of the piece.
+    let rec = null;
 
     function changed() { dirty = true; kick(); if (onChange) onChange(state()); }
 
@@ -27,7 +29,7 @@
         target, song, playing: engine.playing, waiting: engine.waiting, counting: engine.counting, t: engine.time,
         speed: engine.speed, mode: engine.mode, hands: engine.hands, loop: engine.loop, metronome: engine.metronome,
         countIn: engine.countIn, next: engine.next, expected: song ? engine.required(engine.next) : [], lastResult,
-        stats: engine.stats(), bar: song && engine.step >= 0 ? song.steps[engine.step].measure : 0, transpose: semis,
+        stats: engine.stats(), recital: rec && { points: rec.points, combo: rec.combo, multiplier: rec.multiplier }, bar: song && engine.step >= 0 ? song.steps[engine.step].measure : 0, transpose: semis,
       };
     }
 
@@ -64,6 +66,7 @@
       const hands = o.hands === "right" ? { right: "me", left: "auto" } : o.hands === "left" ? { right: "auto", left: "me" } : { right: "me", left: "me" };
       engine.setHands(hands);
       engine.setMode(o.mode || settings.get("mode") || "wait");
+      rec = engine.mode === "recital" ? P.recital.create() : null;
       let speed = 1;
       if (o.speed) speed = o.speed;
       else if (o.tempo) speed = o.tempo / songBpm();
@@ -101,6 +104,8 @@
     function handle(events) {
       let ui = false;
       for (const e of events) {
+        if (rec) rec.feed(e);
+        if (e.type === "end" && rec && e.whole && e.stats.hits + e.stats.late + e.stats.misses) e.recital = rec.result(e.stats.accuracy);
         if (onEvent) onEvent(e);
         switch (e.type) {
           case "auto":
@@ -112,7 +117,7 @@
               if (!mine.has(e.midi)) held.delete(e.midi);
             }
             break;
-          case "step": score.show(e.index); break;
+          case "step": if (e.ms === 0 && rec) rec = P.recital.create(); score.show(e.index); break;
           case "done":
             score.mark(e.step, e.result);
             if (fx && e.result === "hit") for (const n of song.steps[e.step].notes) if (engine.hands[n.hand] === "me") fx.burst(n.midi, "good", performance.now());
@@ -130,7 +135,9 @@
             }
             score.clearMarks(); engine.results.clear();
             ui = true; break;
-          case "end": lastResult = { kind: "end", ...e.stats }; ui = true; break;
+          case "end":
+            lastResult = { kind: "end", ...e.stats, recital: e.recital || null };
+            ui = true; break;
           case "state": case "wait": ui = true; break;
         }
       }
@@ -178,7 +185,11 @@
       toggle(now) { synth.unlock(); if (engine.playing) { engine.pause(); stopSound(); } else { lastResult = null; engine.play(now); } handle(engine.drain()); changed(); },
       restart() { const was = engine.playing; engine.pause(); stopSound(); engine.seek(engine.loop.on ? engine.loop.from : 0); engine.results.clear(); score.clearMarks(); lastResult = null; handle(engine.drain()); if (was) engine.play(performance.now()); handle(engine.drain()); changed(); },
       speed(s) { engine.setSpeed(Math.round(s * 100) / 100); changed(); },
-      mode(m) { engine.setMode(m); settings.set("mode", m); changed(); },
+      mode(m) {
+        stopSound(); engine.setMode(m); settings.set("mode", m);
+        rec = engine.mode === "recital" ? P.recital.create() : null;
+        handle(engine.drain()); changed();
+      },
       hand(h, role) { stopSound(); engine.setHands({ [h]: role }); handle(engine.drain()); changed(); },
       loop(on) {
         if (on && !engine.loop.on && song) {

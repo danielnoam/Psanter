@@ -200,12 +200,13 @@
   function summary(all, course, path, lesson) {
     const keys = Object.keys(all).filter((k) => (lesson ? k.startsWith(course + "|" + path + "#") : k === course + "|" + path));
     if (!keys.length) return null;
-    const out = { seconds: 0, runs: 0, last: "", best: 0, due: "" };
+    const out = { seconds: 0, runs: 0, last: "", best: 0, due: "", stars: 0 };
     for (const k of keys) {
       const p = all[k];
       out.seconds += p.seconds || 0; out.runs += p.runs || 0;
       if ((p.lastDay || "") > out.last) out.last = p.lastDay;
       if (p.best && p.best.speed > out.best) out.best = p.best.speed;
+      if (p.recital && p.recital.stars > out.stars) out.stars = p.recital.stars;
       if (p.review && p.review.due && (!out.due || p.review.due < out.due)) out.due = p.review.due;
     }
     return out;
@@ -295,11 +296,12 @@
     head.append(el("h3", null, name), el("div", "sub", kindOf(r.path) + (c ? ", " + c.title : "")));
     const sm = summary(all, r.course, r.path, r.lesson);
     const dl = el("dl");
-    const add = (k, v) => dl.append(el("dt", null, k), el("dd", null, v));
+    const add = (k, v) => { const dd = el("dd"); dd.append(v); dl.append(el("dt", null, k), dd); };
     add(t("Last practised"), dayLabel(sm && sm.last));
     add(t("Practised"), sm ? minutes(sm.seconds) : "–");
     add(t("Runs"), sm ? String(sm.runs) : "0");
     add(t("Best tempo"), sm && sm.best ? pct(sm.best) : "–");
+    add(t("Recital"), sm && sm.stars ? starsCell(sm.stars) : t("Not played yet"));
     add(t("Review"), sm && sm.due ? dueLabel(sm.due) : t("Not learned yet"));
     const row = el("div", "row");
     row.appendChild(button(r.lesson && !r.key ? t("Open the lesson") : t("Practise"), "btn primary", () => openItem(r)));
@@ -349,24 +351,32 @@
         const name = el("span", null, titles[c.id + "|" + path] || P.lesson.title({}, "", path));
         fill(name, c.id, path);
         const sm = summary(all, c.id, path, true);
-        rows.push({ course: c.id, path, lesson: true, cells: [name, t("Lesson"), dayLabel(sm && sm.last), sm && sm.best ? pct(sm.best) : "", dueCell(sm)] });
+        rows.push({ course: c.id, path, lesson: true, cells: [name, t("Lesson"), dayLabel(sm && sm.last), sm && sm.best ? pct(sm.best) : "", starsCell(sm && sm.stars), dueCell(sm)] });
         lessons++;
       }
       for (const path of c.pieces) {
         titles[c.id + "|" + path] = titles[c.id + "|" + path] || path.split("/").pop();
         const sm = summary(all, c.id, path, false);
-        rows.push({ course: c.id, path, lesson: false, cells: [path.split("/").pop(), kindOf(path), dayLabel(sm && sm.last), sm && sm.best ? pct(sm.best) : "", dueCell(sm)] });
+        rows.push({ course: c.id, path, lesson: false, cells: [path.split("/").pop(), kindOf(path), dayLabel(sm && sm.last), sm && sm.best ? pct(sm.best) : "", starsCell(sm && sm.stars), dueCell(sm)] });
         pieces++;
       }
     }
     if (libSel && !rows.some((r) => r.course === libSel.course && r.path === libSel.path)) libSel = null;
     const parts = [t("{n} lessons", { n: lessons }), t("{n} pieces", { n: pieces })];
     if (due.length) parts.push(t("{n} due for review", { n: due.length }));
-    const table = fileTable([t("Name"), t("Kind"), t("Last practised"), t("Best"), t("Review")], rows, (r) => details(side, r, all));
+    const table = fileTable([t("Name"), t("Kind"), t("Last practised"), t("Best"), t("Recital"), t("Review")], rows, (r) => details(side, r, all));
     const w = withDetails(table, libSel, all);
     side = w.side;
     const note = library.canPick() ? parts.join(", ") : t("This browser can't keep folders between visits; use the desktop app for that.");
     return [libHead(t("Lessons and pieces"), t("Library")), libCommands(note), w.body];
+  }
+  // Best recital stars, out of 5.
+  function starsCell(n) {
+    if (!n) return "";
+    const s = el("span", "stars", "★".repeat(n) + "☆".repeat(5 - n));
+    s.setAttribute("aria-label", t("{n} of 5 stars", { n }));
+    s.title = s.getAttribute("aria-label");
+    return s;
   }
   function dueCell(sm) {
     if (!sm || !sm.due) return sm ? t("Not learned yet") : "";
@@ -845,8 +855,8 @@
     tr.speedValue.setAttribute("aria-label", t("Speed in percent"));
     tr.speedValue.addEventListener("change", () => { const v = Math.max(25, Math.min(150, +tr.speedValue.value || 100)); practice.act.speed(v / 100); });
     tr.speedUp = iconButton("plus", t("Faster"), () => practice.act.speed(Math.min(1.5, practice.engine.speed + 0.05)));
-    tr.mode = select([["wait", t("Wait for me")], ["flow", t("Flow")]], "wait", (v) => practice.act.mode(v));
-    tr.mode.title = t("Wait for each note, or keep going and score what you play");
+    tr.mode = select(MODES.map(([v, name]) => [v, t(name)]), "wait", (v) => practice.act.mode(v));
+    tr.mode.title = t("Wait for each note, keep going, play the whole piece for stars, or watch the app play it");
     tr.mode.setAttribute("aria-label", t("Mode"));
     const hands = [["me", t("You")], ["auto", t("App")], ["off", t("Off")]];
     tr.right = select(hands, "me", (v) => practice.act.hand("right", v));
@@ -891,17 +901,51 @@
     if (s.counting) status = t("Counting in");
     else if (s.waiting && s.expected.length) status = t("Play {notes}", { notes: s.expected.map((m) => P.music.name(m)).join(" ") });
     else if (s.song && !s.playing && s.next >= 0 && s.mode === "wait" && s.t === 0) status = t("Play the first note to start");
+    else if (s.mode === "watch" && s.song) status = t("Watching: the app plays every hand that isn't off");
+    else if (s.recital && s.song) status = s.recital.multiplier > 1
+      ? t("{points} points, {combo} in a row, ×{x}", { points: s.recital.points.toLocaleString(), combo: s.recital.combo, x: s.recital.multiplier })
+      : t("{points} points", { points: s.recital.points.toLocaleString() });
     $("status").textContent = status;
     if (s.lastResult && s.lastResult !== shownResult) {
       shownResult = s.lastResult;
       const r = s.lastResult;
       if (r.kind === "pass" && r.speedUp) toast(t("Clean pass {n}: now {speed}%", { n: r.pass, speed: Math.round(r.speedUp * 100) }));
       else if (r.kind === "pass") toast(r.clean ? t("Clean pass {n}", { n: r.pass }) : t("Pass {n}: {acc}% right, {wrong} wrong", { n: r.pass, acc: r.accuracy, wrong: r.wrong }));
+      else if (r.recital) recitalDone(r);
       else if (!(r.hits + r.late + r.misses)) toast(t("The end"));
       else toast(t("Done: {acc}% right, {wrong} wrong notes", { acc: r.accuracy, wrong: r.wrong }), 5000);
     }
   }
   let shownResult = null;
+
+  // The end of a whole recital: stars, points, the longest run, and again.
+  function recitalDone(r) {
+    const x = r.recital;
+    const d = el("dialog", "sheet recital-done");
+    const head = el("div", "sheet-head"); head.appendChild(el("h2", null, x.isBest ? t("A new best") : t("Recital done")));
+    const body = el("div", "sheet-body");
+    const stars = el("div", "stars big", "★".repeat(x.stars) + "☆".repeat(5 - x.stars));
+    stars.setAttribute("role", "img");
+    stars.setAttribute("aria-label", t("{n} of 5 stars", { n: x.stars }));
+    const dl = el("dl");
+    const add = (k, v) => dl.append(el("dt", null, k), el("dd", null, v));
+    add(t("Points"), x.points.toLocaleString());
+    add(t("Right"), r.accuracy + "%");
+    add(t("Longest run"), t("{n} in a row", { n: x.combo }));
+    add(t("Right on time"), String(x.perfect));
+    add(t("Wrong notes"), String(r.wrong));
+    if (practice.engine.speed !== 1) add(t("Speed"), pct(practice.engine.speed));
+    const row = el("div", "row");
+    const done = () => { d.close(); d.remove(); };
+    row.append(button(t("Play it again"), "btn primary", () => { done(); practice.act.restart(); practice.act.toggle(performance.now()); }), button(t("Close"), "btn", done));
+    body.append(stars, dl, row);
+    if (x.stars < 5) body.appendChild(el("p", "hint", t("Stars come from how much is right: 45% for one, then 65, 80, 90 and 97%.")));
+    d.append(head, body);
+    d.addEventListener("cancel", done);
+    document.body.appendChild(d);
+    d.showModal();
+  }
+  const MODES = [["wait", "Wait for me"], ["flow", "Flow"], ["recital", "Recital"], ["watch", "Watch and listen"]];
 
   function seg(options, onPick) {
     const box = el("div", "seg");
@@ -1357,7 +1401,7 @@
     // Listening to the app play both hands isn't a run of yours.
     if (!(e.stats.hits + e.stats.late + e.stats.misses)) return;
     const run = { speed: practice.engine.speed, mode: practice.engine.mode, stats: e.stats, clean: !!e.clean,
-      kind: e.type === "loop" ? "pass" : "run", bars: P.progress.barsOf(song, practice.engine.results) };
+      kind: e.type === "loop" ? "pass" : "run", bars: P.progress.barsOf(song, practice.engine.results), recital: e.recital || null };
     passes.unshift({ ...run, n: e.pass || null });
     if (passes.length > 12) passes.length = 12;
     const key = pieceKey();
@@ -1413,7 +1457,7 @@
         for (const p of passes.slice(0, 8)) {
           const li = document.createElement("li");
           li.append(el("span", null, p.kind === "pass" ? t("Pass {n}", { n: p.n }) : t("Whole piece")),
-            el("span", null, p.stats.accuracy + "%" + (p.clean ? ", " + t("clean") : "")), el("span", "dim", pct(p.speed) + ", " + t(p.mode === "flow" ? "flow" : "wait")));
+            el("span", null, p.stats.accuracy + "%" + (p.clean ? ", " + t("clean") : "")), el("span", "dim", pct(p.speed) + ", " + t(p.mode === "recital" ? "recital" : p.mode === "flow" ? "flow" : "wait")));
           ul.appendChild(li);
         }
         sec.appendChild(ul);
@@ -1440,7 +1484,7 @@
           piece.appendChild(w);
         }
       } else piece.appendChild(el("p", "dim", key ? t("Nothing yet. Finish a run or a loop pass and it shows here.") : t("Pieces you opened as single files aren't tracked.")));
-      if (pc && !pc.best) piece.appendChild(el("p", "dim", t("Best tempo counts flow-mode runs with {n}% or more right.", { n: P.progress.GOOD })));
+      if (pc && !pc.best) piece.appendChild(el("p", "dim", t("Best tempo counts flow and recital runs with {n}% or more right.", { n: P.progress.GOOD })));
       parts.push(piece);
       if (planned && !(plan && plan.key === pieceKey())) parts.push(planSection());
     }
@@ -1525,10 +1569,16 @@
   }
 
   let recTimer = 0;
-  async function toggleRecord() {
+  // The last recording's layers, for recording another over them; and the
+  // playback of the earlier layers while a new one records.
+  let layers = [], layering = false, stopLayers = null;
+  async function toggleRecord(over = false) {
     if (!recorder.recording) {
       synth.unlock();
-      recorder.start(performance.now());
+      layering = over && layers.length > 0;
+      recorder.start(performance.now(), { keepStart: layering });
+      if (layering) stopLayers = P.takes.play({ take: { notes: layers.flat(), speed: 1 }, withMusic: false,
+        sound: (m, on, vel) => (on ? synth.noteOn(m, vel) : synth.noteOff(m)) });
       tr.record.setAttribute("aria-pressed", "true");
       tr.record.title = t("Stop recording"); tr.record.setAttribute("aria-label", tr.record.title);
       const tick = () => { const s = Math.floor(recorder.elapsed(performance.now()) / 1000); tr.recTime.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
@@ -1536,14 +1586,16 @@
       return;
     }
     const notes = recorder.stop(performance.now());
+    if (stopLayers) { stopLayers(); stopLayers = null; }
     clearInterval(recTimer);
     tr.recTime.textContent = "";
     tr.record.setAttribute("aria-pressed", "false");
     tr.record.title = t("Record what you play"); tr.record.setAttribute("aria-label", tr.record.title);
     if (!notes.length) { toast(t("Nothing was played, so nothing was saved.")); return; }
     const d = new Date();
-    const name = "take " + today() + " " + String(d.getHours()).padStart(2, "0") + "." + String(d.getMinutes()).padStart(2, "0") + ".mid";
-    const bytes = P.midifile.write(notes);
+    layers = layering ? [...layers, notes] : [notes];
+    const name = "take " + today() + " " + String(d.getHours()).padStart(2, "0") + "." + String(d.getMinutes()).padStart(2, "0") + (layers.length > 1 ? " " + layers.length + " layers" : "") + ".mid";
+    const bytes = P.midifile.write(layers.length > 1 ? layers : notes);
     try {
       if (lessonState && lessonState.course && library.writable(lessonState.course)) {
         await library.write(lessonState.course, "recordings/" + name, bytes);
@@ -1745,9 +1797,9 @@
   }
   // Early and late per note, as dots around a centre line.
   function timingGraph(tk) {
-    const hits = tk.hits.filter((h) => h.mode === "flow");
+    const hits = tk.hits.filter((h) => h.mode === "flow" || h.mode === "recital");
     const wrap = el("div", "timing");
-    if (hits.length < 3) { wrap.appendChild(el("p", "dim", t("The timing graph needs a run in flow mode."))); return wrap; }
+    if (hits.length < 3) { wrap.appendChild(el("p", "dim", t("The timing graph needs a run in flow or recital mode."))); return wrap; }
     const c = document.createElement("canvas");
     c.setAttribute("aria-label", t("Timing of each note: above the line is late, below is early"));
     wrap.appendChild(c);
@@ -2211,11 +2263,13 @@
         { label: t("Faster"), key: k("faster"), disabled: !has(), run: act("faster") },
         { label: t("Slower"), key: k("slower"), disabled: !has(), run: act("slower") },
         { label: t("Loop"), key: k("loop"), checked: !!(practice && practice.engine.loop.on), disabled: !has(), run: act("loop") },
-        { label: t("Wait for me"), key: k("mode"), checked: !!(practice && practice.engine.mode === "wait"), disabled: !has(), run: act("mode") },
+        ...MODES.map(([m, name]) => ({ label: t(name), key: m === "wait" ? k("mode") : "", checked: !!(practice && practice.engine.mode === m), disabled: !has(), run: () => practice.act.mode(m) })),
+        "-",
         { label: t("Metronome"), key: k("metronome"), checked: !!(practice && practice.engine.metronome), disabled: !has(), run: act("metronome") },
         { label: t("Count-in"), checked: !!(practice && practice.engine.countIn), disabled: !has(), run: () => practice.act.countIn(!practice.engine.countIn) },
         "-",
-        { label: t("Record what you play"), key: k("record"), checked: recorder.recording, disabled: !onLesson(), run: act("record") },
+        { label: t("Record what you play"), key: k("record"), checked: recorder.recording && !layering, disabled: !onLesson() || (recorder.recording && layering), run: act("record") },
+        { label: layers.length ? t("Record a layer over the last take") : t("Record a layer (after a take)"), checked: recorder.recording && layering, disabled: !onLesson() || !layers.length || (recorder.recording && !layering), run: () => toggleRecord(true) },
         { label: t("Record a video of the falling notes"), checked: !!video, disabled: !onLesson(), run: () => toggleVideo() },
         { label: t("Edit this lesson"), checked: editorShown(), disabled: !(onLesson() && lessonState && lessonState.path), run: () => toggleEditor() },
         "-",

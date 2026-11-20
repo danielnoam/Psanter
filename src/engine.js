@@ -10,12 +10,15 @@
 //
 // Wait mode stops the song at each step until every note it asks for is
 // down, in any order (a chord is a chord however it's rolled). Flow mode
-// never stops: a note you don't play within LATE_MS is a miss.
+// never stops: a note you don't play within LATE_MS is a miss. Recital is
+// flow over the whole piece, scored (recital.js). Watch plays every hand
+// that isn't off and asks for nothing.
 (function () {
   const EARLY_MS = 250;
   const LATE_MS = 250;
   // A wait mode step that took longer than this (real time) counts as late.
   const SLOW_MS = 600;
+  const MODES = ["wait", "flow", "recital", "watch"];
 
   function create(opts = {}) {
     const M = window.Piano.music;
@@ -29,6 +32,8 @@
     let loop = { on: false, from: 0, to: 0 };
     let req = -1, credited = new Set();
     let nextNote = 0, nextBeat = 0, shown = -1, ended = false;
+    // Played from the start without a jump: a recital that counts.
+    let whole = true;
     const autoOn = new Map();
     const held = new Set();
     let queue = [];
@@ -37,7 +42,9 @@
 
     function blankPass() { return { hits: 0, late: 0, misses: 0, wrong: 0, offsets: [], startedAt: null }; }
     const emit = (e) => { queue.push(e); };
-    const required = (s) => (s ? [...new Set(s.notes.filter((n) => hands[n.hand] === "me" && !n.tied).map((n) => n.midi))] : []);
+    // What a hand does now: watching, the app plays yours too.
+    const role = (h) => (mode === "watch" && hands[h] === "me" ? "auto" : hands[h]);
+    const required = (s) => (s ? [...new Set(s.notes.filter((n) => role(n.hand) === "me" && !n.tied).map((n) => n.midi))] : []);
 
     function findReq(fromIndex) {
       if (!song) return -1;
@@ -63,6 +70,7 @@
       if (!song) { t = 0; return; }
       t = Math.max(0, Math.min(ms, song.end));
       waiting = false; ended = false; credited.clear();
+      whole = t === 0;
       req = findReq(firstStepFrom(t));
       nextNote = lowerBound(song.notes, t);
       nextBeat = lowerBound(song.beats, t);
@@ -131,7 +139,7 @@
         credited.add(midi);
         const offset = waiting ? Math.round(Math.max(0, now - waitSince - latency) * speed) : Math.round(Math.max(heard - s.ms, mode === "wait" ? 0 : -Infinity));
         pass.offsets.push(offset); total.offsets.push(offset);
-        const want = s.notes.find((n) => n.midi === midi && hands[n.hand] === "me");
+        const want = s.notes.find((n) => n.midi === midi && role(n.hand) === "me");
         emit({ type: "hit", midi, step: req, offset, vel, want: want ? want.vel : null, mode, ms: s.ms });
         if (need.every((m) => credited.has(m))) stepDone(now);
         return;
@@ -139,7 +147,7 @@
       // Playing along with a hand the app plays, or a note still in the
       // step just passed, isn't a mistake.
       const here = shown >= 0 ? song.steps[shown] : null;
-      if (here && here.notes.some((n) => n.midi === midi && hands[n.hand] !== "me")) return;
+      if (mode === "watch" || (here && here.notes.some((n) => n.midi === midi && role(n.hand) !== "me"))) return;
       pass.wrong++; total.wrong++;
       emit({ type: "wrong", midi, step: req });
     }
@@ -194,7 +202,7 @@
         if (!waiting) { waiting = true; waitSince = now; emit({ type: "wait", step: req }); }
         return;
       }
-      if (mode === "flow") {
+      if (mode !== "wait") {
         while (req >= 0 && song.steps[req].ms + LATE_MS + latency * speed < to) {
           const missed = required(song.steps[req]).filter((m) => !credited.has(m));
           pass.misses++; total.misses++;
@@ -219,7 +227,7 @@
           ended = true;
           silenceAuto();
           playing = false;
-          emit({ type: "end", stats: summary(total) });
+          emit({ type: "end", stats: summary(total), whole });
           emit({ type: "state", playing: false });
         }
       }
@@ -233,7 +241,7 @@
       const noteLimit = holding ? to - 0.5 : to + 0.01;
       while (nextNote < song.notes.length && song.notes[nextNote].ms <= noteLimit) {
         const n = song.notes[nextNote++];
-        if (hands[n.hand] !== "auto" || n.tied) continue;
+        if (role(n.hand) !== "auto" || n.tied) continue;
         if (autoOn.has(n.midi)) emit({ type: "auto", midi: n.midi, on: false });
         autoOn.set(n.midi, n.ms + n.dur);
         emit({ type: "auto", midi: n.midi, on: true, vel: n.vel, hand: n.hand });
@@ -257,11 +265,17 @@
     function drain() { const q = queue; queue = []; return q; }
 
     function setHands(h) { hands = { ...hands, ...h }; silenceAuto(); credited.clear(); req = song ? findReq(firstStepFrom(t)) : -1; if (song) nextNote = lowerBound(song.notes, t); waiting = false; }
-    function setMode(m) { mode = m === "flow" ? "flow" : "wait"; waiting = false; }
+    function setMode(m) {
+      const was = mode;
+      mode = MODES.includes(m) ? m : "wait"; waiting = false;
+      if (mode === "recital" && loop.on) setLoop({ on: false });
+      if ((was === "watch") !== (mode === "watch")) setHands({});
+    }
     function setSpeed(s) { speed = Math.max(0.1, Math.min(2, s)); }
     function setLoop(l) {
       loop = { ...loop, ...l };
       if (song) { loop.from = Math.max(0, Math.min(loop.from, song.end)); loop.to = Math.max(loop.from, Math.min(loop.to || song.end, song.end)); }
+      if (loop.on && mode === "recital") loop.on = false;
       if (loop.on && (t < loop.from || t > loop.to)) seekTo(loop.from);
     }
 
@@ -284,5 +298,5 @@
   }
 
   window.Piano = window.Piano || {};
-  window.Piano.engine = { create, EARLY_MS, LATE_MS };
+  window.Piano.engine = { create, EARLY_MS, LATE_MS, MODES };
 })();

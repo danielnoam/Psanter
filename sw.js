@@ -14,6 +14,7 @@ const ASSETS = [
   "./icon.svg",
   "./src/app.js",
   "./src/engine.js",
+  "./src/recital.js",
   "./src/icons.js",
   "./src/layout.js",
   "./src/lesson.js",
@@ -117,6 +118,14 @@ const ASSETS = [
   "./lessons/first-year/24-minor-chords.md",
   "./lessons/first-year/25-jingle-bells.md",
   "./lessons/first-year/26-loud-and-soft.md",
+  "./lessons/songs/01-twinkle.md",
+  "./lessons/songs/02-frere-jacques.md",
+  "./lessons/songs/03-amazing-grace.md",
+  "./lessons/songs/04-auld-lang-syne.md",
+  "./lessons/songs/05-greensleeves.md",
+  "./lessons/songs/06-fur-elise.md",
+  "./lessons/songs/07-canon-in-d.md",
+  "./lessons/songs/08-prelude-in-c.md",
 ];
 
 self.addEventListener("install", (e) => {

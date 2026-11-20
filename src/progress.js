@@ -32,7 +32,7 @@
       touch();
     }
 
-    // run: { speed, mode, stats: {hits, late, misses, wrong, accuracy, timing}, bars: {measure: {played, miss, late}}, clean, kind }
+    // run: { speed, mode, stats: {hits, late, misses, wrong, accuracy, timing}, bars: {measure: {played, miss, late}}, clean, kind, recital? }
     function addRun(key, title, run, day) {
       const p = piece(key, title);
       const s = run.stats;
@@ -41,7 +41,14 @@
       p.lastDay = day;
       p.history.push({ day, speed: run.speed, mode: run.mode, accuracy: s.accuracy, wrong: s.wrong, misses: s.misses, late: s.late, timing: s.timing, kind: run.kind });
       if (p.history.length > HISTORY) p.history.splice(0, p.history.length - HISTORY);
-      if (run.mode === "flow" && s.accuracy >= GOOD && (!p.best || run.speed > p.best.speed)) p.best = { speed: run.speed, accuracy: s.accuracy, day };
+      if ((run.mode === "flow" || run.mode === "recital") && s.accuracy >= GOOD && (!p.best || run.speed > p.best.speed)) p.best = { speed: run.speed, accuracy: s.accuracy, day };
+      if (run.recital) {
+        const r = { stars: run.recital.stars, points: run.recital.points, combo: run.recital.combo, speed: run.speed, day };
+        const b = p.recital;
+        r.isBest = !b || r.stars > b.stars || (r.stars === b.stars && r.points > b.points);
+        if (r.isBest) p.recital = { stars: r.stars, points: r.points, combo: r.combo, speed: r.speed, day };
+        run.recital.isBest = r.isBest;
+      }
       review(key, p, s.accuracy, day);
       for (const [m, b] of Object.entries(run.bars || {})) {
         const o = p.bars[m] || (p.bars[m] = { played: 0, miss: 0, late: 0 });

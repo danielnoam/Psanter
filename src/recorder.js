@@ -2,7 +2,7 @@
 // hands it back as notes for midifile.write().
 (function () {
   function create() {
-    let start = 0, on = false, pedal = false;
+    let start = 0, on = false, pedal = false, trim = true;
     let notes = [];
     const open = new Map();   // midi → note still held
     const sustained = new Set(); // released while the pedal was down
@@ -28,14 +28,16 @@
     }
 
     return {
-      start(now) { start = now; on = true; notes = []; open.clear(); sustained.clear(); },
+      // keepStart: times from start(), not from the first note (a layer
+      // played over an earlier one keeps its place).
+      start(now, { keepStart = false } = {}) { start = now; on = true; trim = !keepStart; notes = []; open.clear(); sustained.clear(); },
       note, setPedal,
-      // The notes, starting at the first one played.
+      // The notes, starting at the first one played (or at start()).
       stop(now) {
         if (!on) return [];
         for (const m of [...open.keys()]) close(m, now - start);
         on = false;
-        const first = notes.length ? notes[0].ms : 0;
+        const first = trim && notes.length ? notes[0].ms : 0;
         return notes.map((n) => ({ ...n, ms: n.ms - first }));
       },
       get recording() { return on; },
