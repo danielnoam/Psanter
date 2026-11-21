@@ -97,6 +97,6 @@
     return out;
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.music = { NAMES, LOWEST, HIGHEST, isBlack, name, letter, song, beatGrid, stepAt, barSpan, transpose };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.music = { NAMES, LOWEST, HIGHEST, isBlack, name, letter, song, beatGrid, stepAt, barSpan, transpose };
 })();

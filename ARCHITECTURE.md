@@ -1,4 +1,4 @@
-# Piano architecture
+# Psanter architecture
 
 The map of the code. A file added, removed or renamed, or a flow changed,
 is updated here in the same change.
@@ -107,7 +107,7 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
   restart when the permission lapsed.
 - **No installer; the zip updates itself** (`portable.rs`). It reads the
   latest release from GitHub's API without a token, so the repo's releases
-  must be public. It installs only a Piano.exe whose minisign signature
+  must be public. It installs only a Psanter.exe whose minisign signature
   matches `src-tauri/updater.pub`; the private key is the
   `TAURI_SIGNING_PRIVATE_KEY` secret, used only by desktop.yml. A copy in a
   read-only folder (Program Files) can't update and says so.
@@ -160,7 +160,13 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
   (whose `windows` list is empty). The WebView keeps its files open while
   it runs, so a move is written to piano-data.json and done on the next
   start.
-- The updater swaps exes by renaming the running one to Piano.exe.old and
+- The app was called Piano until it became Psanter (2026-11-21). What it
+  saved under the old name keeps it, so nothing resets: the localStorage
+  keys (`piano.settings`, `piano.progress`, `piano.lang`, `piano.log`,
+  `piano.draft:*`), the AppData folder (`io.github.danielnoam.piano`, from
+  the identifier, also kept) and `piano-data.json`. Don't rename them
+  without a migration. The JS namespace is `window.Psanter`.
+- The updater swaps exes by renaming the running one to Psanter.exe.old and
   starts the new one through `cmd` a second later, after this one has
   exited; started straight away, the one-copy check would hand it back to
   the old process.

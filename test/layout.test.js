@@ -2,7 +2,7 @@
 const assert = require("assert");
 global.window = {};
 require("../src/layout.js");
-const L = window.Piano.layout;
+const L = window.Psanter.layout;
 
 let passed = 0;
 function test(name, fn) {

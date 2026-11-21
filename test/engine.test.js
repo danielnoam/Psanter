@@ -3,7 +3,7 @@ const assert = require("assert");
 global.window = {};
 require("../src/music.js");
 require("../src/engine.js");
-const { music, engine } = window.Piano;
+const { music, engine } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

@@ -69,6 +69,6 @@
     };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.takes = { dynamics, recorder, play, TOLERANCE };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.takes = { dynamics, recorder, play, TOLERANCE };
 })();

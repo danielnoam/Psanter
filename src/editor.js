@@ -117,7 +117,7 @@
       const pos = area.selectionStart;
       const block = blockAt(pos);
       if (!block) { status.textContent = t("Put the cursor inside a music block first"); return; }
-      const W = window.Piano.abcwrite;
+      const W = window.Psanter.abcwrite;
       const barMap = W.barBefore(area.value.slice(0, pos), block.key);
       const before = area.value.slice(Math.max(0, pos - 1), pos);
       insert((before && !/\s|\|/.test(before) ? " " : "") + W.chord(midis, block.key, barMap, lengthText(block.unit)) + " ");
@@ -133,6 +133,6 @@
     };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.editor = { create, TEMPLATE };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.editor = { create, TEMPLATE };
 })();

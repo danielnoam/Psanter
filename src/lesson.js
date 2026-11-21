@@ -83,6 +83,6 @@
   // Lessons sort by file name, so 02-scale comes before 10-minuet.
   const byName = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 
-  window.Piano = window.Piano || {};
-  window.Piano.lesson = { frontMatter, options, fence, isPiece, kind, bookRef, resolve, title, byName };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.lesson = { frontMatter, options, fence, isPiece, kind, bookRef, resolve, title, byName };
 })();

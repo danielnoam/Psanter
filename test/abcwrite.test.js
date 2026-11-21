@@ -2,7 +2,7 @@
 const assert = require("assert");
 global.window = {};
 require("../src/abcwrite.js");
-const { abcwrite } = window.Piano;
+const { abcwrite } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

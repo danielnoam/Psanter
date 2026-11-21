@@ -1,0 +1,2 @@
+### Changed
+- The app is now called Psanter: the window title, About, the exe (Psanter.exe) and the zip (Psanter-<version>-windows). Your settings, progress and the Data folder carry over: put Psanter.exe in the folder that holds your Data folder, or copy that folder (and piano-data.json, if you have one) next to the new exe. The 1.0.0 updater looks for Piano.exe, so it won't find this version; download it by hand once.

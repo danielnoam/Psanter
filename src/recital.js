@@ -32,6 +32,6 @@
   function multiplier(combo) { return Math.min(MAX, 1 + Math.floor(combo / COMBO)); }
   function stars(accuracy) { const s = STARS.find(([min]) => accuracy >= min); return s ? s[1] : 0; }
 
-  window.Piano = window.Piano || {};
-  window.Piano.recital = { create, stars, multiplier, COMBO, MAX };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.recital = { create, stars, multiplier, COMBO, MAX };
 })();

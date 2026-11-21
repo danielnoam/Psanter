@@ -266,7 +266,7 @@
     return { midis: notes.map((n) => n.midi), tonic: base, abc };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.abcwrite = { KEYS: Object.keys(KEYS), MINORS: Object.keys(MINORS), spell, chord, barBefore, drill, scale,
+  window.Psanter = window.Psanter || {};
+  window.Psanter.abcwrite = { KEYS: Object.keys(KEYS), MINORS: Object.keys(MINORS), spell, chord, barBefore, drill, scale,
     scaleExercise, chordExercise, rhythmExercise, earPhrase, TAP };
 })();

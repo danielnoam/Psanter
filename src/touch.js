@@ -60,6 +60,6 @@
     };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.touch = { shape, filter, deviceName, delays, CURVES, DOUBLE_MS };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.touch = { shape, filter, deviceName, delays, CURVES, DOUBLE_MS };
 })();

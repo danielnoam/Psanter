@@ -7,7 +7,7 @@ require("../src/touch.js");
 require("../src/hands.js");
 require("../src/midifile.js");
 require("../src/chords.js");
-const { music, touch, hands, midifile, chords } = window.Piano;
+const { music, touch, hands, midifile, chords } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

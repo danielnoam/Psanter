@@ -64,6 +64,6 @@
     return m ? "#" + [m[1], m[2], m[3]].map((x) => (+x).toString(16).padStart(2, "0")).join("") : "#000000";
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.theme = { TOKENS, ALL, PAIRS, clean, parse, contrast, problems, apply, read };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.theme = { TOKENS, ALL, PAIRS, clean, parse, contrast, problems, apply, read };
 })();

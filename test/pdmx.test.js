@@ -3,7 +3,7 @@ const assert = require("assert");
 global.window = {};
 require("../src/lesson.js");
 require("../src/pdmx.js");
-const { pdmx, lesson } = window.Piano;
+const { pdmx, lesson } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

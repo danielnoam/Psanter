@@ -32,7 +32,7 @@
     function setEffects(fx) { effects = fx; }
 
     function layoutKeys() {
-      const M = window.Piano.music;
+      const M = window.Psanter.music;
       if (rangeMode === "full" || !song || !song.notes.length) { lo = M.LOWEST; hi = M.HIGHEST; }
       else {
         // The song's notes, out to whole octaves (C to B), at least two.
@@ -48,7 +48,7 @@
       const r = canvas.getBoundingClientRect();
       w = Math.max(1, Math.round(r.width)); h = Math.max(1, Math.round(r.height));
       canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-      const M = window.Piano.music;
+      const M = window.Psanter.music;
       let whites = 0;
       for (let m = lo; m <= hi; m++) if (!M.isBlack(m)) whites++;
       whiteW = w / Math.max(1, whites);
@@ -122,7 +122,7 @@
           }
           c.globalAlpha = 1;
           if ((labels.names || (labels.fingers && n.finger)) && yBot - yTop > 14 && wd > 9) {
-            const M = window.Piano.music;
+            const M = window.Psanter.music;
             const text = labels.fingers && n.finger ? String(n.finger) : (labels.system === "solfege" ? M.name(n.midi, "solfege") : M.letter(n.midi));
             c.fillStyle = colors.label;
             c.fillText(text, x + wd / 2, yBot - 3);
@@ -209,6 +209,6 @@
       get range() { return [lo, hi]; }, get keyboardTop() { return kbTop; }, keyBox: (m) => keyAt.get(m) };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.roll = { create };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.roll = { create };
 })();

@@ -110,6 +110,6 @@
     return { close: () => close(false), get open() { return open >= 0; } };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.menus = { create };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.menus = { create };
 })();

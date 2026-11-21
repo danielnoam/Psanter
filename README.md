@@ -1,4 +1,4 @@
-# Piano
+# Psanter
 
 A piano practice app for Windows: lessons written as Markdown files with
 the music inside them, played along on a MIDI piano, shown as a score and
@@ -17,8 +17,8 @@ node test/run-all.js    # the tests
 ```
 
 The Windows app is a zip: Actions → **Windows app** → Run workflow, then
-download `Piano-<version>-windows` from the run, unzip it anywhere and
-run `Piano.exe`. No installer. It isn't signed, so the first start shows
+download `Psanter-<version>-windows` from the run, unzip it anywhere and
+run `Psanter.exe`. No installer. It isn't signed, so the first start shows
 SmartScreen's "More info → Run anyway".
 
 ## Lessons
@@ -132,7 +132,7 @@ watches it and reloads a lesson when you save it in your editor.
   for less motion).
 - A video (WebM) of the falling notes with the app's sound.
 - Portable on Windows: unzip it anywhere, settings and progress stay in a
-  Data folder beside Piano.exe (or AppData, or a folder you pick, in
+  Data folder beside Psanter.exe (or AppData, or a folder you pick, in
   Settings → About), and it updates itself from the latest signed release.
 - A desktop window: a menu bar (File, View, Practice, Drills, Help, with
   Alt+letter and the arrow keys), the play controls in a toolbar, a status

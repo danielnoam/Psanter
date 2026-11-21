@@ -124,6 +124,6 @@
     return hit ? hit[0] : "";
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.catalog = { SITE, searchUrl, parse, composers, composerFor, names, lesson, decode, SUGGESTED };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.catalog = { SITE, searchUrl, parse, composers, composerFor, names, lesson, decode, SUGGESTED };
 })();

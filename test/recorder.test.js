@@ -5,7 +5,7 @@ require("../src/recorder.js");
 require("../src/hands.js");
 require("../src/midifile.js");
 require("../src/music.js");
-const { recorder, midifile } = window.Piano;
+const { recorder, midifile } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

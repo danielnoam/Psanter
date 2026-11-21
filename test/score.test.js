@@ -2,7 +2,7 @@
 const assert = require("assert");
 global.window = {};
 require("../src/score.js");
-const { score } = window.Piano;
+const { score } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

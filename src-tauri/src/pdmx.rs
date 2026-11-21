@@ -162,7 +162,7 @@ impl<R: Read> Read for Counted<R> {
 
 fn open(file: &str) -> Result<(reqwest::blocking::Response, u64), String> {
     let client = reqwest::blocking::Client::builder()
-        .user_agent("Piano (practice app)")
+        .user_agent("Psanter (practice app)")
         .connect_timeout(std::time::Duration::from_secs(30))
         .timeout(None)
         .redirect(reqwest::redirect::Policy::custom(|a| {

@@ -13,7 +13,7 @@
     const listeners = new Set();
     const pedalsDown = new Set();
     const sounding = new Set();
-    const T = window.Piano.touch;
+    const T = window.Psanter.touch;
     const keys = T.filter(touch || (() => ({})));
     const lag = T.delays();
 
@@ -183,6 +183,6 @@
     };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.midi = { create, typing, KEYS };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.midi = { create, typing, KEYS };
 })();

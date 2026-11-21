@@ -1,6 +1,6 @@
-# Contributing to Piano
+# Contributing to Psanter
 
-The rules for everyone who works on Piano, people and Claude sessions
+The rules for everyone who works on Psanter, people and Claude sessions
 alike. CLAUDE.md adds only what is specific to Claude.
 
 ## Getting started
@@ -48,7 +48,7 @@ stays possible, but none is required.
 **Design.** Colours are tokens in `src/styles.css`, every theme passes
 WCAG AA (`test/contrast.test.js`), click targets are at least 32 px, and every
 animation has a reduced-motion answer. Moves go through keel's motion
-(`Piano.motion`), which turns each into a short fade under reduced
+(`Psanter.motion`), which turns each into a short fade under reduced
 motion; a CSS transition uses its `--spring-*` variables.
 
 **RULES.md.** The rules that stop bugs and drift (motion, components,
@@ -80,5 +80,5 @@ change is shown or explained to Daniel first and waits for his OK.
   folds `changes/` into CHANGELOG.md. New feature: minor; fix: patch.
 - The Windows zip is built by hand: Actions → Windows app → Run
   workflow. That leaves the run's artifacts only. A merge to main with a
-  new APP_VERSION publishes the `app-v<version>` release (zip, Piano.exe,
-  Piano.exe.sig) by itself; the in-app updater reads it.
+  new APP_VERSION publishes the `app-v<version>` release (zip, Psanter.exe,
+  Psanter.exe.sig) by itself; the in-app updater reads it.

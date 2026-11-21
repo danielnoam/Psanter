@@ -5,7 +5,7 @@ require("../src/music.js");
 require("../src/hands.js");
 require("../src/midifile.js");
 require("../src/lesson.js");
-const { lesson, midifile } = window.Piano;
+const { lesson, midifile } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

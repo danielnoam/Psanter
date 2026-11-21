@@ -5,7 +5,7 @@ require("../src/music.js");
 require("../src/plan.js");
 require("../src/chords.js");
 require("../src/takes.js");
-const { music, plan, chords, takes } = window.Piano;
+const { music, plan, chords, takes } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

@@ -2,7 +2,7 @@
 const assert = require("assert");
 global.window = {};
 require("../src/progress.js");
-const { progress } = window.Piano;
+const { progress } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

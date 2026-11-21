@@ -6,7 +6,7 @@ const path = require("path");
 global.window = {};
 require("../src/catalog.js");
 require("../src/lesson.js");
-const { catalog, lesson } = window.Piano;
+const { catalog, lesson } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

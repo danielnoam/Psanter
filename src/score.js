@@ -4,7 +4,7 @@
 // and to colour when you play it. MIDI files have no notation; their score
 // panel says so and the falling notes show the piece.
 (function () {
-  const M = () => window.Piano.music;
+  const M = () => window.Psanter.music;
   const cssVar = (name, fallback) => (getComputedStyle(document.documentElement).getPropertyValue(name) || "").trim() || fallback;
 
   // Which hand each ABC voice is, in the order the voices first appear.
@@ -320,6 +320,6 @@
     }
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.score = { abc, musicxml, none, abcHands, tempoMap };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.score = { abc, musicxml, none, abcHands, tempoMap };
 })();

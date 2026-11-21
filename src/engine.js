@@ -21,7 +21,7 @@
   const MODES = ["wait", "flow", "recital", "watch"];
 
   function create(opts = {}) {
-    const M = window.Piano.music;
+    const M = window.Psanter.music;
     let song = null;
     let t = 0, playing = false, last = 0, waiting = false, waitSince = 0, preroll = 0, prerollBeat = 0, prerollStep = 0;
     let speed = 1, mode = "wait", metronome = false, countIn = false;
@@ -297,6 +297,6 @@
     };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.engine = { create, EARLY_MS, LATE_MS, MODES };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.engine = { create, EARLY_MS, LATE_MS, MODES };
 })();

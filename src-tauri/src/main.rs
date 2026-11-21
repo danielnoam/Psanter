@@ -1,4 +1,4 @@
-// Piano on Windows: the same files as the web app (tools/build-www.js), in
+// Psanter on Windows: the same files as the web app (tools/build-www.js), in
 // the system's own WebView (WebView2). Everything the app does lives in
 // src/; this opens the window, keeps one copy running, lets the page reach
 // the piano over MIDI without asking each time, and keeps the app portable
@@ -58,7 +58,7 @@ fn main() {
         // data folder.
         .setup(move |app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
-                .title("Piano")
+                .title("Psanter")
                 .inner_size(1280.0, 840.0)
                 .min_inner_size(900.0, 600.0)
                 .background_color(tauri::window::Color(0x1B, 0x1C, 0x1F, 0xFF))
@@ -69,5 +69,5 @@ fn main() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("Piano failed to start");
+        .expect("Psanter failed to start");
 }

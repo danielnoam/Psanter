@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 global.window = {};
 require("../src/theme.js");
-const { theme } = window.Piano;
+const { theme } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

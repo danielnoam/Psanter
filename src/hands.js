@@ -78,6 +78,6 @@
     return out;
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.hands = { assign, TOGETHER_MS };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.hands = { assign, TOGETHER_MS };
 })();
