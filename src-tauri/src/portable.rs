@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 const IDENTIFIER: &str = "io.github.danielnoam.piano";
 const CONFIG: &str = "piano-data.json";
-const REPO: &str = "danielnoam/psanter";
+const REPO: &str = "danielnoam/Psanter";
 const PUBLIC_KEY: &str = include_str!("../updater.pub");
 
 #[derive(Serialize, Deserialize, Default, Clone)]

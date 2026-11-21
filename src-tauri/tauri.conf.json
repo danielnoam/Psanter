@@ -28,7 +28,7 @@
     ],
     "category": "Education",
     "shortDescription": "Piano practice with your own lessons",
-    "homepage": "https://github.com/danielnoam/psanter",
+    "homepage": "https://github.com/danielnoam/Psanter",
     "createUpdaterArtifacts": false,
     "windows": {
       "nsis": {
