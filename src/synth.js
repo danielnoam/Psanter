@@ -238,6 +238,6 @@
       get loaded() { return samples.size; } };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.synth = { create };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.synth = { create };
 })();

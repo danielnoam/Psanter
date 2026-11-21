@@ -1,4 +1,4 @@
-/* Piano's styles. Colours, type, space, radius and motion are tokens, set
+/* Psanter's styles. Colours, type, space, radius and motion are tokens, set
    per theme here and nowhere else; the theme editor (Settings) changes
    tokens only, so a custom theme can't break the look of one control.
    test/contrast.test.js checks every theme's pairs. */

@@ -1,12 +1,12 @@
-// Piano: the app. keel's files (src/keel/) load first, then the vendored
-// libraries (src/vendor/), then the app's own modules on window.Piano,
+// Psanter: the app. keel's files (src/keel/) load first, then the vendored
+// libraries (src/vendor/), then the app's own modules on window.Psanter,
 // then this, which builds the screens and wires them together:
 // the library, a lesson with its practice panels, the transport bar and
 // Settings.
 (function () {
   const APP_VERSION = "1.0.0";
   const K = window.Keel;
-  const P = window.Piano;
+  const P = window.Psanter;
   const $ = (id) => document.getElementById(id);
   const icon = P.icon;
 
@@ -143,9 +143,9 @@
     if (video) toggleVideo();
     if (editingLayout) { editingLayout = false; layoutBtn.setAttribute("aria-pressed", "false"); }
     if (recorder.recording) toggleRecord();
-    $("title").textContent = "Piano";
+    $("title").textContent = "Psanter";
     $("status").textContent = "";
-    document.title = "Piano";
+    document.title = "Psanter";
     await renderLibrary();
   }
 
@@ -832,7 +832,7 @@
     // The editor only stays for a lesson; pieces, drills and free play have no text.
     if (!(lessonState && lessonState.path) && P.layout.panels(currentLayout()).includes("editor")) settings.set("layout", P.layout.remove(currentLayout(), "editor"));
     $("title").textContent = title;
-    document.title = title + " - Piano";
+    document.title = title + " - Psanter";
     heads.score.textContent = "";
     renderLayout();
   }
@@ -1429,7 +1429,7 @@
     ];
     const list = el("div", "set-card");
     for (const [name, what] of credits) { const r = el("div", "set-row"); r.append(el("strong", null, name), el("span", "dim", what)); list.appendChild(r); }
-    return page(t("About"), el("p", "dim", t("Piano, version {v}. A practice app for your own lessons, on this computer.", { v: APP_VERSION })),
+    return page(t("About"), el("p", "dim", t("Psanter, version {v}. A practice app for your own lessons, on this computer.", { v: APP_VERSION })),
       updatesGroup(), dataGroup(), el("h4", null, t("Made with")), list);
   }
 
@@ -1458,8 +1458,8 @@
     catch (e) {
       updateState = "ready"; renderUpdateNotice(); if ($("settings").open) renderSettings();
       const why = String(e);
-      if (why === "readonly") toast(t("Piano can't write to its own folder, so it can't update itself here. Download the new version from GitHub."), 6000);
-      else if (why === "signature") toast(t("The download wasn't signed by Piano's key, so it wasn't installed."), 6000);
+      if (why === "readonly") toast(t("Psanter can't write to its own folder, so it can't update itself here. Download the new version from GitHub."), 6000);
+      else if (why === "signature") toast(t("The download wasn't signed by Psanter's key, so it wasn't installed."), 6000);
       else if (why === "nokey") toast(t("This copy has no update key, so it can't check a download. Download the new version from GitHub."), 6000);
       else toast(t("The update didn't install: {why}", { why }), 6000);
     }
@@ -1479,7 +1479,7 @@
       btns.appendChild(button(t("Update and restart"), "btn primary", () => installUpdate()));
       btns.appendChild(button(t("What's new"), "btn", () => K.platform.openOutside(update.page)));
     } else btns.appendChild(button(t("Check now"), "btn", () => checkUpdate(true)));
-    return setGroup(t("Updates"), setting(t("Updates"), btns, state + " " + t("A new version replaces Piano.exe in its folder, only when it carries Piano's signature.")));
+    return setGroup(t("Updates"), setting(t("Updates"), btns, state + " " + t("A new version replaces Psanter.exe in its folder, only when it carries Psanter's signature.")));
   }
   function dataGroup() {
     if (!K.platform.desktop) return null;
@@ -1488,7 +1488,7 @@
     const pick = select(Object.entries(names), dataLoc.mode, async (v) => {
       let path = null;
       if (v === "custom") {
-        try { path = await invoke("plugin:dialog|open", { options: { directory: true, title: t("Where should Piano keep your data?") } }); } catch (e) { path = null; }
+        try { path = await invoke("plugin:dialog|open", { options: { directory: true, title: t("Where should Psanter keep your data?") } }); } catch (e) { path = null; }
         if (!path) { pick.value = dataLoc.mode; return; }
       }
       if (!(await confirmMove(path || names[v]))) { pick.value = dataLoc.mode; return; }
@@ -1496,14 +1496,14 @@
       try { await invoke("set_data_location", { mode: v, path }); }
       catch (e) {
         pick.value = dataLoc.mode;
-        toast(String(e) === "readonly" ? t("Piano's folder is read-only, so the data can't live beside it.") : t("Piano can't write to that folder."), 6000);
+        toast(String(e) === "readonly" ? t("Psanter's folder is read-only, so the data can't live beside it.") : t("Psanter can't write to that folder."), 6000);
       }
     });
     pick.disabled = !dataLoc.exe_writable;
     const hint = [t("Now in {path}.", { path: dataLoc.dir })];
-    if (dataLoc.problem === "readonly") hint.push(t("Piano's folder is read-only, so the data is in AppData."));
+    if (dataLoc.problem === "readonly") hint.push(t("Psanter's folder is read-only, so the data is in AppData."));
     if (dataLoc.problem === "missing") hint.push(t("The folder you picked isn't there, so the data is in AppData for now."));
-    if (!dataLoc.exe_writable) hint.push(t("Move Piano to a folder you can write to, to choose."));
+    if (!dataLoc.exe_writable) hint.push(t("Move Psanter to a folder you can write to, to choose."));
     hint.push(t("Changing it copies your data over and restarts; the old copy stays."));
     return setGroup(t("Your data"), setting(t("Keep settings and progress"), pick, hint.join(" ")));
   }
@@ -1512,7 +1512,7 @@
       const d = el("dialog", "sheet");
       const head = el("div", "sheet-head"); head.appendChild(el("h2", null, t("Move your data?")));
       const body = el("div", "sheet-body");
-      body.append(el("p", null, t("Piano restarts and copies your settings and progress to {where}. The old copy stays where it is.", { where })));
+      body.append(el("p", null, t("Psanter restarts and copies your settings and progress to {where}. The old copy stays where it is.", { where })));
       const row = el("div", "row");
       const done = (v) => { d.close(); d.remove(); resolve(v); };
       row.append(button(t("Move and restart"), "btn primary", () => done(true)), button(t("Cancel"), "btn", () => done(false)));
@@ -2887,7 +2887,7 @@
   }
 
   const motion = K.motion.create();
-  window.PianoApp = { version: APP_VERSION, i18n, settings, get practice() { return practice; }, library, openLesson, openPiece, openFree, showLibrary, motion, toast,
+  window.PsanterApp = { version: APP_VERSION, i18n, settings, get practice() { return practice; }, library, openLesson, openPiece, openFree, showLibrary, motion, toast,
     progress, hotkeys: hot, recorder, get editor() { return editor; }, toggleEditor, openDrills, newDrill, toggleVideo, routeNote, runAction, toggleLayoutEditor, openThemeEditor, openPianoPanel, piano, openBook, get pdf() { return pdf; },
     midi, synth, startRoutine, get routine() { return routine; }, get ear() { return ear; },
     startPlan, get plan() { return plan; }, get lastTake() { return lastTake; }, replay };

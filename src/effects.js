@@ -67,6 +67,6 @@
     return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + Math.max(0, Math.min(1, a)).toFixed(3) + ")";
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.effects = { create };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.effects = { create };
 })();

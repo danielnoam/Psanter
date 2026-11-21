@@ -1,4 +1,4 @@
-# Piano
+# Psanter
 
 A Windows piano practice app: Markdown lessons with ABC, MusicXML and
 MIDI inside, played along on a MIDI piano with a score and falling notes.
@@ -20,7 +20,7 @@ in a Tauri window. Started from keel's template.
   (`desktop.yml`); a zip to try things is built by running it by hand.
 - Lines for the changelog go in `changes/<branch>.md`, never CHANGELOG.md.
 - Check a change in a browser with a simulated piano (the computer's
-  keyboard or `PianoApp` in the console), not only the tests.
+  keyboard or `PsanterApp` in the console), not only the tests.
 - Shared files come from keel (danielnoam/keel): change them there, then
   sync with `node tools/keel-sync.js v<x.y.z>` in its own change.
 

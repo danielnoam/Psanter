@@ -194,6 +194,6 @@
     container.appendChild(build(tree, []));
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.layout = { panels, normalize, remove, place, swap, show, resize, render };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.layout = { panels, normalize, remove, place, swap, show, resize, render };
 })();

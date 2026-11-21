@@ -33,6 +33,6 @@
     return steps;
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.plan = { make, SPEEDS };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.plan = { make, SPEEDS };
 })();

@@ -41,6 +41,6 @@
     return lines.join("\n");
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.pdmx = { RECORD, LEVELS, search, names, lesson };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.pdmx = { RECORD, LEVELS, search, names, lesson };
 })();

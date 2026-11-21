@@ -1,13 +1,13 @@
-# The Windows app as a zip: unzip it anywhere and run Piano.exe. No
+# The Windows app as a zip: unzip it anywhere and run Psanter.exe. No
 # installer, nothing to set up (Windows 10 and 11 already have WebView2).
 # It's portable: its data goes in a Data folder beside it, and it updates
 # itself from the latest release.
 #
 # A merge to main whose APP_VERSION has no app-v<version> release yet is a
 # release: it builds, signs and publishes app-v<version> with the zip,
-# Piano.exe and Piano.exe.sig (what the in-app updater fetches). Other
+# Psanter.exe and Psanter.exe.sig (what the in-app updater fetches). Other
 # merges don't build. Run by hand (Actions → Windows app → Run workflow) it
-# only leaves artifacts. The run's artifact is the Piano folder itself:
+# only leaves artifacts. The run's artifact is the Psanter folder itself:
 # GitHub zips every artifact, so uploading the zip would put a zip inside
 # the download.
 name: Windows app
@@ -92,14 +92,14 @@ jobs:
       - name: Zip
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path out/Piano | Out-Null
-          Copy-Item src-tauri/target/release/piano.exe out/Piano/Piano.exe
-          Copy-Item README.md out/Piano/README.md
-          Compress-Archive -Path out/Piano -DestinationPath "out/Piano-$env:V-windows.zip"
+          New-Item -ItemType Directory -Force -Path out/Psanter | Out-Null
+          Copy-Item src-tauri/target/release/psanter.exe out/Psanter/Psanter.exe
+          Copy-Item README.md out/Psanter/README.md
+          Compress-Archive -Path out/Psanter -DestinationPath "out/Psanter-$env:V-windows.zip"
 
       # The portable updater (src-tauri/src/portable.rs) installs only a
-      # Piano.exe that carries this signature. A release attaches Piano.exe
-      # and Piano.exe.sig beside the zip.
+      # Psanter.exe that carries this signature. A release attaches Psanter.exe
+      # and Psanter.exe.sig beside the zip.
       - name: Sign for the updater
         if: env.HAS_KEY == 'true'
         shell: bash
@@ -114,28 +114,28 @@ jobs:
           export TAURI_SIGNING_PRIVATE_KEY="$(clean "$TAURI_SIGNING_PRIVATE_KEY")"
           export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(clean "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD")"
           mkdir -p out/update
-          cp out/Piano/Piano.exe out/update/Piano.exe
-          npx tauri signer sign out/update/Piano.exe
+          cp out/Psanter/Psanter.exe out/update/Psanter.exe
+          npx tauri signer sign out/update/Psanter.exe
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Piano-${{ env.V }}-windows
-          path: out/Piano/
+          name: Psanter-${{ env.V }}-windows
+          path: out/Psanter/
 
       - uses: actions/upload-artifact@v4
         if: env.HAS_KEY == 'true'
         with:
-          name: Piano-${{ env.V }}-update
+          name: Psanter-${{ env.V }}-update
           path: out/update/
 
-      # A release without a signed Piano.exe would never reach the updater.
+      # A release without a signed Psanter.exe would never reach the updater.
       - name: Publish the release
         if: needs.gate.outputs.release == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$HAS_KEY" != true ]; then echo "::error::No signing key: a release needs Piano.exe.sig"; exit 1; fi
+          if [ "$HAS_KEY" != true ]; then echo "::error::No signing key: a release needs Psanter.exe.sig"; exit 1; fi
           awk -v h="## [$V]" 'index($0,h)==1{on=1;next} on&&/^## /{exit} on' CHANGELOG.md > notes.md
-          gh release create "app-v$V" "out/Piano-$V-windows.zip" out/update/Piano.exe out/update/Piano.exe.sig \
-            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Piano $V" --notes-file notes.md --latest
+          gh release create "app-v$V" "out/Psanter-$V-windows.zip" out/update/Psanter.exe out/update/Psanter.exe.sig \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Psanter $V" --notes-file notes.md --latest

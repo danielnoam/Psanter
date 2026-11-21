@@ -45,6 +45,6 @@
     };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.recorder = { create };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.recorder = { create };
 })();

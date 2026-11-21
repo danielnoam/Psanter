@@ -5,7 +5,7 @@ require("../src/music.js");
 require("../src/engine.js");
 require("../src/recital.js");
 require("../src/progress.js");
-const { music, engine, recital, progress } = window.Piano;
+const { music, engine, recital, progress } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

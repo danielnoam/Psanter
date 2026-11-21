@@ -70,6 +70,6 @@
     return at;
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.chords = { name, sequence, indexAt, NAMES };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.chords = { name, sequence, indexAt, NAMES };
 })();

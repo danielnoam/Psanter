@@ -1,6 +1,6 @@
 {
-  "name": "Piano",
-  "short_name": "Piano",
+  "name": "Psanter",
+  "short_name": "Psanter",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

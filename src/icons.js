@@ -53,6 +53,6 @@
     }
     return svg;
   }
-  window.Piano = window.Piano || {};
-  window.Piano.icon = icon;
+  window.Psanter = window.Psanter || {};
+  window.Psanter.icon = icon;
 })();

@@ -92,6 +92,6 @@
     return { open, go, resize, close, get page() { return page; }, get key() { return key; }, get open_() { return !!doc; } };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.pdfview = { create };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.pdfview = { create };
 })();

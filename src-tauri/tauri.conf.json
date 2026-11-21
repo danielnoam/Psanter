@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Piano",
+  "productName": "Psanter",
   "identifier": "io.github.danielnoam.piano",
   "version": "0.0.0",
   "build": {
@@ -28,7 +28,7 @@
     ],
     "category": "Education",
     "shortDescription": "Piano practice with your own lessons",
-    "homepage": "https://github.com/danielnoam/piano",
+    "homepage": "https://github.com/danielnoam/psanter",
     "createUpdaterArtifacts": false,
     "windows": {
       "nsis": {

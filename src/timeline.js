@@ -84,6 +84,6 @@
     return { setSong(s) { song = s; }, resize, draw, readColors, get dragging() { return !!drag; } };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.timeline = { create };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.timeline = { create };
 })();

@@ -82,7 +82,7 @@
     const notes = [];
     noteTracks.forEach((tr, i) => {
       if (hands[i] === "off") return;
-      const split = hands[i] === "split" ? window.Piano.hands.assign(tr.notes.map((n) => ({ midi: n.midi, ms: toMs(n.tick) }))) : null;
+      const split = hands[i] === "split" ? window.Psanter.hands.assign(tr.notes.map((n) => ({ midi: n.midi, ms: toMs(n.tick) }))) : null;
       tr.notes.forEach((n, j) => {
         const ms = toMs(n.tick);
         notes.push({ midi: n.midi, ms: Math.max(0, ms - cutMs), dur: Math.max(20, toMs(n.endTick) - ms), vel: n.vel, hand: split ? split[j] : hands[i] });
@@ -93,7 +93,7 @@
     let tempo = tempos.length ? tempos.map((e) => ({ ms: toMs(e.tick) - cutMs, bpm: 60000000 / e.tempo })) : [{ ms: 0, bpm: 120 }];
     const before = tempo.filter((x) => x.ms <= 0.5);
     tempo = [{ ms: 0, bpm: before.length ? before[before.length - 1].bpm : 120 }, ...tempo.filter((x) => x.ms > 0.5)];
-    const song = window.Piano.music.song({ notes, title, tempo, beatsPerBar: ts[0], beatUnit: ts[1] });
+    const song = window.Psanter.music.song({ notes, title, tempo, beatsPerBar: ts[0], beatUnit: ts[1] });
     song.skippedBars = cut ? Math.round(cut / (division * 4 * ts[0] / ts[1])) : 0;
     song.tracks = noteTracks.map((tr, i) => ({ name: tr.name || "", notes: tr.notes.length, hand: hands[i], guessed: !(choice && choice[i]) }));
     return song;
@@ -156,6 +156,6 @@
     return new Uint8Array([...head, ...layers.flatMap((l, i) => track(l, i === 0))]);
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.midifile = { parse, write, assignHands };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.midifile = { parse, write, assignHands };
 })();

@@ -20,7 +20,7 @@ fn allowed(url: &str) -> Result<reqwest::Url, String> {
 async fn get(url: &str) -> Result<Vec<u8>, String> {
     let u = allowed(url)?;
     let client = reqwest::Client::builder()
-        .user_agent("Piano (practice app)")
+        .user_agent("Psanter (practice app)")
         .timeout(std::time::Duration::from_secs(30))
         .redirect(reqwest::redirect::Policy::none())
         .build()

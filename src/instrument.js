@@ -329,6 +329,6 @@
     };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.instrument = { masterVolume, masterTuning, STANDARD_MODELS, findTone, setupFrom, SETUP_KEYS, TOUCH, HAND_SOUNDS, create, dt1, rq1, parse, identity, decode, encode, values, describe, standard, toneName, model, PARAMS, BANKS, IDENTITY_REQUEST, hex };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.instrument = { masterVolume, masterTuning, STANDARD_MODELS, findTone, setupFrom, SETUP_KEYS, TOUCH, HAND_SOUNDS, create, dt1, rq1, parse, identity, decode, encode, values, describe, standard, toneName, model, PARAMS, BANKS, IDENTITY_REQUEST, hex };
 })();

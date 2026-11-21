@@ -2,7 +2,7 @@
 const assert = require("assert");
 global.window = {};
 require("../src/hotkeys.js");
-const { hotkeys } = window.Piano;
+const { hotkeys } = window.Psanter;
 
 let passed = 0;
 function test(name, fn) {

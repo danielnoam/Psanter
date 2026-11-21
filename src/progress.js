@@ -134,6 +134,6 @@
     return bars;
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.progress = { create, dayKey, addDays, barsOf, GOOD, INTERVALS };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.progress = { create, dayKey, addDays, barsOf, GOOD, INTERVALS };
 })();

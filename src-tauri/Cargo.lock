@@ -2750,7 +2750,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "piano"
+name = "psanter"
 version = "0.0.0"
 dependencies = [
  "base64 0.23.1",

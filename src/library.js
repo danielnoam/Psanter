@@ -67,7 +67,7 @@
     }
 
     function sortFiles(paths) {
-      const by = window.Piano.lesson.byName;
+      const by = window.Psanter.lesson.byName;
       return {
         lessons: paths.filter((p) => LESSON.test(p) && !/(^|\/)readme\.md$/i.test(p)).sort(by),
         pieces: paths.filter((p) => PIECE.test(p)).sort(by),
@@ -176,6 +176,6 @@
     return { list, addFolder, addFiles, reconnect, removeFolder, read, modified, write, writable, canPick };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.library = { create };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.library = { create };
 })();

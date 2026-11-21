@@ -5,7 +5,7 @@
 const assert = require("assert");
 global.window = {};
 require("../src/instrument.js");
-const I = window.Piano.instrument;
+const I = window.Psanter.instrument;
 
 let passed = 0;
 function test(name, fn) {

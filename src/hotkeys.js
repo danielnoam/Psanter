@@ -43,7 +43,7 @@
     return k.replace(/^ $|\+ $/, (m) => m.replace(" ", "Space")).replace("ArrowLeft", "←").replace("ArrowRight", "→").replace("ArrowUp", "↑").replace("ArrowDown", "↓").replace("Escape", "Esc");
   }
 
-  window.Piano = window.Piano || {};
+  window.Psanter = window.Psanter || {};
   const PEDALS = { pedal67: "Soft pedal", pedal66: "Middle pedal" };
-  window.Piano.hotkeys = { create, keyOf, label, ACTIONS, DEFAULT_KEYS, PEDALS };
+  window.Psanter.hotkeys = { create, keyOf, label, ACTIONS, DEFAULT_KEYS, PEDALS };
 })();

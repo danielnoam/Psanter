@@ -1,13 +1,13 @@
 // The portable side of the Windows app: where its data lives, and updating
 // the exe in place.
 //
-// Data: by default in a Data folder beside Piano.exe, so the whole folder
+// Data: by default in a Data folder beside Psanter.exe, so the whole folder
 // can be moved or carried on a USB stick. piano-data.json (beside the exe,
 // or in AppData when the exe's folder is read-only) can point it at AppData
 // or another folder instead. The WebView keeps everything the page stores
 // (settings, progress, folder handles) in <data>\EBWebView.
 //
-// Updates: the newest release's Piano.exe, checked against the minisign
+// Updates: the newest release's Psanter.exe, checked against the minisign
 // public key in updater.pub, replaces the running exe (Windows lets a
 // running exe be renamed), and the app starts again.
 use serde::{Deserialize, Serialize};
@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 const IDENTIFIER: &str = "io.github.danielnoam.piano";
 const CONFIG: &str = "piano-data.json";
-const REPO: &str = "danielnoam/piano";
+const REPO: &str = "danielnoam/psanter";
 const PUBLIC_KEY: &str = include_str!("../updater.pub");
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -43,7 +43,7 @@ pub struct Location {
 }
 
 pub fn exe_path() -> PathBuf {
-    std::env::current_exe().unwrap_or_else(|_| PathBuf::from("Piano.exe"))
+    std::env::current_exe().unwrap_or_else(|_| PathBuf::from("Psanter.exe"))
 }
 fn exe_dir() -> PathBuf {
     exe_path().parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("."))
@@ -58,7 +58,7 @@ fn writable(dir: &Path) -> bool {
     if fs::create_dir_all(dir).is_err() {
         return false;
     }
-    let probe = dir.join(".piano-write-test");
+    let probe = dir.join(".psanter-write-test");
     let ok = fs::write(&probe, b"ok").is_ok();
     let _ = fs::remove_file(&probe);
     ok
@@ -192,7 +192,7 @@ struct Release {
 }
 
 fn client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder().user_agent("Piano").build().map_err(|e| e.to_string())
+    reqwest::Client::builder().user_agent("Psanter").build().map_err(|e| e.to_string())
 }
 
 fn newer(a: &str, b: &str) -> bool {
@@ -201,7 +201,7 @@ fn newer(a: &str, b: &str) -> bool {
 }
 
 // The newest release when it's newer than this copy and carries a signed
-// Piano.exe; None otherwise.
+// Psanter.exe; None otherwise.
 #[tauri::command]
 pub async fn update_check(app: tauri::AppHandle) -> Result<Option<Update>, String> {
     let res = client()?
@@ -222,7 +222,7 @@ pub async fn update_check(app: tauri::AppHandle) -> Result<Option<Update>, Strin
         return Ok(None);
     }
     let url = |name: &str| rel.assets.iter().find(|a| a.name == name).map(|a| a.browser_download_url.clone());
-    match (url("Piano.exe"), url("Piano.exe.sig")) {
+    match (url("Psanter.exe"), url("Psanter.exe.sig")) {
         (Some(exe), Some(sig)) => Ok(Some(Update { version, notes: rel.body.unwrap_or_default(), page: rel.html_url, exe, sig })),
         _ => Ok(None),
     }

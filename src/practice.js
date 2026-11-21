@@ -3,7 +3,7 @@
 // the app's notes going out. app.js builds the screen around it.
 (function () {
   function create({ scoreEl, rollCanvas, timelineCanvas, midi, synth, settings, onChange, onEvent, onExpected, onFrame }) {
-    const P = window.Piano;
+    const P = window.Psanter;
     const engine = P.engine.create();
     const roll = P.roll.create(rollCanvas);
     const timeline = P.timeline.create(timelineCanvas, {
@@ -273,6 +273,6 @@
       get song() { return song; }, get target() { return target; }, get score() { return score; }, songBpm };
   }
 
-  window.Piano = window.Piano || {};
-  window.Piano.practice = { create };
+  window.Psanter = window.Psanter || {};
+  window.Psanter.practice = { create };
 })();

@@ -1,7 +1,7 @@
 {
-  "name": "piano",
+  "name": "psanter",
   "private": true,
-  "description": "Piano's desktop build (Tauri, src-tauri/). The app itself has no build step and doesn't depend on anything here.",
+  "description": "Psanter's desktop build (Tauri, src-tauri/). The app itself has no build step and doesn't depend on anything here.",
   "scripts": {
     "build:www": "node tools/build-www.js www-desktop --desktop",
     "icons": "tauri icon icon.svg",

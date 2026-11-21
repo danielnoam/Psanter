@@ -1,4 +1,4 @@
-// The service worker for Piano's web copy: installable and usable
+// The service worker for Psanter's web copy: installable and usable
 // offline. Stale-while-revalidate for the app's own files: a launch paints
 // from cache while a fresh copy is fetched for the next one, and the
 // ?v=x.y.z on every tag in index.html makes a release's files new URLs.
@@ -6,7 +6,7 @@
 //
 // CACHE goes up with every release (tools/release.js). A file added to or
 // removed from the app goes in or out of ASSETS (test/app.test.js checks).
-const CACHE = "piano-v2";
+const CACHE = "psanter-v1";
 const ASSETS = [
   "./",
   "./index.html",
@@ -147,7 +147,7 @@ self.addEventListener("activate", (e) => {
 // commit's files while one is open, with a Back to the release bar.
 importScripts("src/keel/sw-preview.js");
 // The name keel's releases.js opens a test build into: its `name`, lower case.
-const PREVIEW = "Piano".toLowerCase() + "-preview";
+const PREVIEW = "Psanter".toLowerCase() + "-preview";
 const preview = self.KeelPreview.create(PREVIEW);
 
 self.addEventListener("fetch", (e) => {
