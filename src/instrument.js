@@ -141,6 +141,45 @@
     return list && list[tone.index] ? list[tone.index] : (BANKS[tone.bank] || "Bank " + (tone.bank + 1)) + " " + (tone.index + 1);
   }
 
+  // A tone by name: the model's own names, or "Piano 2" / "E. Piano 4" /
+  // "Other 12", the way unknown models show them. Case and spaces and dots
+  // don't matter. null when nothing matches.
+  const squash = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9+]/g, "");
+  function findTone(m, name) {
+    const want = squash(name);
+    if (!want) return null;
+    if (m && m.tones) for (let bank = 0; bank < m.tones.length; bank++) {
+      const i = m.tones[bank].findIndex((n) => squash(n) === want);
+      if (i >= 0) return { bank, index: i };
+    }
+    for (let bank = 0; bank < BANKS.length; bank++) {
+      const g = new RegExp("^" + squash(BANKS[bank]) + "(\\d+)$").exec(want);
+      if (g && +g[1] >= 1) return { bank, index: +g[1] - 1 };
+    }
+    return null;
+  }
+  const TOUCH = ["Fixed", "Super light", "Light", "Medium", "Heavy", "Super heavy"];
+
+  // A piece's piano setup from its lesson's front matter or its practice
+  // options (`tone: Harpsichord 1`, `touch: light`): only what's there and
+  // readable. Bad names are reported, not dropped quietly.
+  function setupFrom(opts, m) {
+    const out = {}, bad = [];
+    if (opts && opts.tone) { const tn = findTone(m, opts.tone); if (tn) out.tone = tn; else bad.push(opts.tone); }
+    if (opts && opts.touch) { const i = TOUCH.findIndex((n) => squash(n) === squash(opts.touch)); if (i >= 0) out.touch = i; else bad.push(opts.touch); }
+    return { setup: out, bad };
+  }
+  // What a piece's setup keeps: the sound and the keyboard, not the volume.
+  const SETUP_KEYS = ["tone", "touch", "mode", "toneLeft", "toneDual", "splitPoint"];
+
+  // Sounds for the app's hand on your piano (channel 2), as General MIDI
+  // programs, which nearly every keyboard has besides its panel tones.
+  const HAND_SOUNDS = [
+    [0, "Acoustic grand"], [4, "Electric piano"], [6, "Harpsichord"], [11, "Vibraphone"], [19, "Church organ"],
+    [24, "Nylon guitar"], [32, "Acoustic bass"], [40, "Violin"], [42, "Cello"], [48, "Strings"], [52, "Choir"],
+    [56, "Trumpet"], [71, "Clarinet"], [73, "Flute"], [88, "Warm pad"],
+  ];
+
   // Standard MIDI: the same few controls on any keyboard, on channel 1.
   function standard({ channel = 0, msb, lsb, program, volume, reverb }) {
     const c = channel & 15, out = [];
@@ -151,6 +190,37 @@
     if (reverb != null) out.push([0xb0 | c, 91, reverb & 0x7f]);
     return out;
   }
+
+  // Universal SysEx most keyboards take: master volume (0-127, sent as
+  // 14 bits) and master fine tuning (±100 cents around A = 440 Hz).
+  function masterVolume(v) {
+    const n = Math.max(0, Math.min(16383, Math.round(v / 127 * 16383)));
+    return [0xf0, 0x7f, 0x7f, 0x04, 0x01, n & 0x7f, (n >> 7) & 0x7f, 0xf7];
+  }
+  function masterTuning(hz) {
+    const cents = Math.max(-100, Math.min(100, 1200 * Math.log2(hz / 440)));
+    const n = Math.max(0, Math.min(16383, Math.round(8192 + cents / 100 * 8192)));
+    return [0xf0, 0x7f, 0x7f, 0x04, 0x03, n & 0x7f, (n >> 7) & 0x7f, 0xf7];
+  }
+
+  // Tone lists from makers' published MIDI manuals, for keyboards that
+  // don't speak Roland's app protocol: [name, bank MSB, bank LSB, program 0-127]
+  // on channel 1. Untested on the pianos themselves.
+  const P125 = [
+    ["Grand Piano", 108, 0, 1], ["Live Grand", 108, 2, 2], ["Ballad Grand", 108, 3, 1], ["Bright Grand", 108, 0, 2],
+    ["Stage E.Piano", 108, 0, 5], ["DX E.Piano", 108, 0, 6], ["Vintage E.Piano", 108, 1, 5], ["Synth Piano", 108, 0, 89],
+    ["Jazz Organ", 108, 0, 17], ["Rock Organ", 108, 0, 19], ["Organ Principal", 108, 1, 20], ["Organ Tutti", 108, 0, 20],
+    ["Harpsichord 8'", 108, 0, 7], ["Harpsi.8'+4'", 108, 1, 7], ["E.Clavichord", 108, 0, 8], ["Vibraphone", 108, 0, 12],
+    ["Strings", 108, 0, 49], ["Slow Strings", 108, 0, 50], ["Choir", 108, 0, 53], ["Synth Pad", 108, 0, 90],
+    ["Acoustic Bass", 108, 0, 33], ["Electric Bass", 108, 0, 34], ["Bass & Cymbal", 108, 1, 33], ["Fretless Bass", 108, 0, 36],
+  ].map(([n, msb, lsb, pc]) => [n, msb, lsb, pc - 1]);
+  // Kawai ES110 owner's manual, "Program Change Number List", with
+  // multi-timbral mode off (the default): program only, no bank.
+  const ES110 = ["Concert Grand 1", "Concert Grand 2", "Studio Grand", "Studio Grand 2", "Mellow Grand", "Mellow Grand 2",
+    "Modern Piano", "Rock Piano", "Classic E.Piano", "60's E.Piano", "Modern E.Piano", "Jazz Organ", "Church Organ",
+    "Slow Strings", "String Ensemble", "Wood Bass", "Electric Bass", "Harpsichord", "Vibraphone"].map((n, i) => [n, null, null, i]);
+  // Yamaha P-125/P-121 MIDI Reference, "Preset Voice List" (printed 1-128).
+  const STANDARD_MODELS = { "Yamaha P-125 / P-121": P125, "Kawai ES110": ES110 };
 
   // What a message is, in a few words, for the learn log.
   function describe(bytes) {
@@ -167,6 +237,8 @@
     const s = b[0] & 0xf0, ch = (b[0] & 15) + 1;
     if (s === 0xb0) return "Control " + b[1] + " = " + b[2] + ", channel " + ch;
     if (s === 0xc0) return "Program " + (b[1] + 1) + ", channel " + ch;
+    if (b[0] === 0xf0 && b[1] === 0x7f && b[3] === 0x04 && b[4] === 0x01) return "Master volume " + Math.round(((b[6] << 7) | b[5]) / 16383 * 127);
+    if (b[0] === 0xf0 && b[1] === 0x7f && b[3] === 0x04 && b[4] === 0x03) return "Master tuning " + Math.round((((b[6] << 7) | b[5]) - 8192) / 8192 * 100) + " cents";
     if (b[0] === 0xf0) return "SysEx, maker " + hex([b[1]]);
     return "";
   }
@@ -243,6 +315,8 @@
     }
     function sendStandard(opts) {
       for (const m of standard(opts)) out(m);
+      if (opts.master != null) out(masterVolume(opts.master));
+      if (opts.tuning != null) out(masterTuning(opts.tuning));
     }
 
     return {
@@ -256,5 +330,5 @@
   }
 
   window.Piano = window.Piano || {};
-  window.Piano.instrument = { create, dt1, rq1, parse, identity, decode, encode, values, describe, standard, toneName, model, PARAMS, BANKS, IDENTITY_REQUEST, hex };
+  window.Piano.instrument = { masterVolume, masterTuning, STANDARD_MODELS, findTone, setupFrom, SETUP_KEYS, TOUCH, HAND_SOUNDS, create, dt1, rq1, parse, identity, decode, encode, values, describe, standard, toneName, model, PARAMS, BANKS, IDENTITY_REQUEST, hex };
 })();

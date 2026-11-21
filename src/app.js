@@ -95,7 +95,13 @@
   }
   function pedal(down) { synth.setPedal(down); recorder.setPedal(down, performance.now()); }
 
-  const midi = P.midi.create({ onNote: routeNote, onDevices: () => renderDevice(), onPedal: pedal,
+  // The soft or middle pedal as a shortcut, bound like a piano key.
+  function pedalKey(id) {
+    if (captureNote) { captureNote(id); return; }
+    const action = hot.actionForNote(id);
+    if (action) runAction(action);
+  }
+  const midi = P.midi.create({ onNote: routeNote, onDevices: () => renderDevice(), onPedal: pedal, onPedalKey: pedalKey,
     touch: () => ({ curve: settings.get("touch"), floor: settings.get("touchFloor"), doubles: settings.get("doubles") }) });
   const typing = P.midi.typing({
     onNote: routeNote,
@@ -124,6 +130,7 @@
 
   async function showLibrary() {
     if (practice) { practice.engine.pause(); practice.stopSound(); }
+    restorePiano();
     if (routine) endRoutine(false);
     if (stopReplay) stopReplay();
     plan = null; lastTake = null;
@@ -742,6 +749,7 @@
       markActive();
       passes = [];
       await practice.load(target);
+      applyPianoSetup(target);
       const s = practice.state();
       heads.score.textContent = [target.title, describe(target.opts || {})].filter(Boolean).join(", ");
       if (target.kind === "midi") renderTracks(lessonState.course + "|" + lessonState.pieces[which.piece].path);
@@ -1100,7 +1108,9 @@
     const card = el("div", "device-card" + (ok ? " on" : ""));
     card.append(icon("piano", 22), el("div", "grow"));
     card.lastChild.append(el("strong", null, ok ? t("Connected") : t("No piano")), el("span", "dim", status));
-    const out = select([["", t("The app's own sound")], ...d.outputs.map((o) => [o.id, o.name])], settings.get("output") || "", (v) => { settings.set("output", v); midi.setOutput(v); });
+    const out = select([["", t("The app's own sound")], ...d.outputs.map((o) => [o.id, o.name])], settings.get("output") || "", (v) => { settings.set("output", v); midi.setOutput(v); sendHandSound(); renderSettings(); });
+    const hand = select([["", t("The piano's own tone")], ...P.instrument.HAND_SOUNDS.map(([n, name]) => [String(n), t(name)])], settings.get("handSound") ?? "",
+      (v) => { settings.set("handSound", v); sendHandSound(true); });
     const lights = select([["-1", t("Off")], ...Array.from({ length: 16 }, (_, c) => [String(c), t("Channel {n}", { n: c + 1 })])], String(settings.get("lightChannel")),
       (v) => { midi.light([], settings.get("lightChannel")); settings.set("lightChannel", +v); });
     const lat = range(0, 300, 5, settings.get("latency"), (v) => { settings.set("latency", v); practice && practice.engine.setLatency(v); }, (v) => t("{n} ms", { n: v }));
@@ -1120,6 +1130,7 @@
         toggle(t("Count a key once"), "doubles", t("Drops a second press of the same key within 40 ms, for a keyboard Windows lists twice."))),
       setGroup(t("Sound"),
         setting(t("The app's notes play on"), out, t("Your piano, if it has MIDI in, or the app's own sound.")),
+        settings.get("output") ? setting(t("The app's hand sounds like"), hand, t("A different sound for the hand the app plays, so you can tell it from yours. Most pianos have these; some ignore them.")) : null,
         toggle(t("Play my notes in the app too"), "echo", t("For a keyboard with no speakers of its own."))),
       setGroup(t("Playing"),
         latRow,
@@ -2132,7 +2143,7 @@
   function shortcutsSection() {
     const sec = section(t("Shortcuts"));
     sec.classList.add("shortcuts");
-    sec.appendChild(el("p", "dim", t("Click a key to change it, then press the new one (Esc clears it). A piano key you never play, like the lowest A, can be a shortcut too.")));
+    sec.appendChild(el("p", "dim", t("Click a key to change it, then press the new one (Esc clears it). A piano key you never play, like the lowest A, or the soft or middle pedal, can be a shortcut too.")));
     const grid = el("div", "keys-table");
     grid.append(el("span", "dim", t("Action")), el("span", "dim", t("Key")), el("span", "dim", t("Piano key")));
     for (const [action, label] of P.hotkeys.ACTIONS) {
@@ -2141,8 +2152,8 @@
         captureKey = (k) => { captureKey = null; settings.set("keys", hot.bind(action, k || "")); renderSettings(); };
       });
       const n = hot.noteFor(action);
-      const noteBtn = button(n == null ? "—" : P.music.name(n), "btn", () => {
-        noteBtn.textContent = t("Play a key…"); noteBtn.classList.add("listening");
+      const noteBtn = button(n == null ? "—" : typeof n === "string" ? t(P.hotkeys.PEDALS[n] || n) : P.music.name(n), "btn", () => {
+        noteBtn.textContent = t("Play a key or press a pedal…"); noteBtn.classList.add("listening");
         captureNote = (m) => { captureNote = null; settings.set("pianoKeys", hot.bindNote(action, hot.noteFor(action) === m ? null : m)); renderSettings(); };
       });
       noteBtn.title = t("Play the same key again to clear it");
@@ -2201,6 +2212,7 @@
   // redraws the panel; a value the piano reports only moves its control,
   // and never the one you're dragging.
   function pianoChanged() {
+    checkTranspose();
     if (!pianoOpen()) return;
     const v = piano.values;
     const shape = [piano.state, piano.id && piano.id.model, v.mode, midi.sysex, pianoPort].join("|");
@@ -2234,7 +2246,7 @@
     body.appendChild(setGroup(null,
       setting(t("Piano's MIDI port"), select([["", t("No port")], ...d.outputs.map((o) => [o.id, o.name])], pianoPort, (id) => connectPiano(id)))));
 
-    if (st === "roland") body.append(...rolandGroups(v, m));
+    if (st === "roland") body.append(pieceGroup(), ...rolandGroups(v, m));
     else if (st === "standard") body.append(standardGroup());
     body.appendChild(learnGroup());
     pianoDlg.replaceChildren(head, body);
@@ -2326,9 +2338,23 @@
     return groups;
   }
 
+  function pieceGroup() {
+    const key = pieceKey(), saved = key && (settings.get("pianoSetups") || {})[key];
+    const keep = button(saved ? t("Save again") : t("Remember for this piece"), "btn", () => savePianoSetup());
+    keep.prepend(icon("save"));
+    keep.disabled = !key;
+    const row = el("div", "row"); row.appendChild(keep);
+    if (saved) row.appendChild(button(t("Forget"), "btn", () => forgetPianoSetup()));
+    const r = setting(key ? pieceTitle() : t("No piece open"), row,
+      key ? (saved ? t("Opening it sets the piano's tone, touch and keyboard mode as saved.") : t("Opening it will set the piano's tone, touch and keyboard mode as they are now."))
+        : t("Open a piece or exercise to give it its own tone and touch."));
+    r.classList.add("stack");
+    return setGroup(t("This piece"), r);
+  }
+
   // For any keyboard: its MIDI manual lists each tone's bank and program.
   function standardGroup() {
-    const sv = settings.get("pianoStandard") || { msb: 0, lsb: 0, program: 1, volume: 100, reverb: 40 };
+    const sv = { msb: 0, lsb: 0, program: 1, volume: 100, reverb: 40, master: 127, tuning: 440, model: "", tone: 0, ...(settings.get("pianoStandard") || {}) };
     const save = (k, val) => { sv[k] = val; settings.set("pianoStandard", { ...sv }); };
     const num = (k, min, max, label) => {
       const i = document.createElement("input"); i.type = "number"; i.min = min; i.max = max; i.value = sv[k]; i.className = "num-field";
@@ -2336,14 +2362,29 @@
       i.addEventListener("change", () => { const n = Math.round(+i.value); if (!(n >= min && n <= max)) { toast(t("Pick a number from {a} to {b}", { a: min, b: max })); i.value = sv[k]; return; } save(k, n); });
       return i;
     };
-    const send = button(t("Change tone"), "btn", () => piano.sendStandard({ msb: sv.msb, lsb: sv.lsb, program: sv.program - 1 }));
-    send.prepend(icon("music"));
-    const tone = el("div", "row"); tone.append(num("msb", 0, 127, t("Bank")), num("lsb", 0, 127, t("Sub-bank")), num("program", 1, 128, t("Program")), send);
-    const toneRow = setting(t("Tone"), tone, t("Bank, sub-bank and program. Your piano's MIDI manual lists them for each tone."));
-    toneRow.classList.add("stack");
+    const models = P.instrument.STANDARD_MODELS;
+    const list = models[sv.model];
+    const model = select([["", t("Another keyboard: numbers")], ...Object.keys(models).map((k) => [k, k])], list ? sv.model : "", (v) => { save("model", v); save("tone", 0); renderPianoPanel(); });
+    let toneRow;
+    if (list) {
+      const pick = select(list.map(([name], i) => [String(i), name]), String(Math.min(sv.tone, list.length - 1)), (v) => {
+        save("tone", +v);
+        const [, msb, lsb, program] = list[+v];
+        piano.sendStandard({ msb, lsb, program });
+      });
+      toneRow = setting(t("Tone"), pick, t("From the maker's MIDI manual. Not tried on this piano yet."));
+    } else {
+      const send = button(t("Change tone"), "btn", () => piano.sendStandard({ msb: sv.msb, lsb: sv.lsb, program: sv.program - 1 }));
+      send.prepend(icon("music"));
+      const tone = el("div", "row"); tone.append(num("msb", 0, 127, t("Bank")), num("lsb", 0, 127, t("Sub-bank")), num("program", 1, 128, t("Program")), send);
+      toneRow = setting(t("Tone"), tone, t("Bank, sub-bank and program. Your piano's MIDI manual lists them for each tone."));
+      toneRow.classList.add("stack");
+    }
     return setGroup(t("Standard MIDI"),
+      setting(t("Your piano"), model, t("Some pianos change only the sound of notes the app sends, not of the keys.")),
       toneRow,
-      setting(t("Volume"), range(0, 127, 1, sv.volume, (n) => { save("volume", n); piano.sendStandard({ volume: n }); }, String)),
+      setting(t("Master volume"), range(0, 127, 1, sv.master, (n) => { save("master", n); piano.sendStandard({ master: n }); }, String)),
+      setting(t("Tuning"), range(430, 450, 0.1, sv.tuning, (n) => { save("tuning", n); piano.sendStandard({ tuning: n }); }, (n) => n.toFixed(1) + " Hz"), t("A above middle C, within 100 cents of 440.")),
       setting(t("Reverb"), range(0, 127, 1, sv.reverb, (n) => { save("reverb", n); piano.sendStandard({ reverb: n }); }, String)));
   }
 
@@ -2364,6 +2405,72 @@
     const row = el("div", "row"); row.append(copy, clear);
     det.append(sum, hint, pre, row);
     return det;
+  }
+
+  // The app's hand on channel 2 in its own sound: a General MIDI program.
+  // "" leaves the piano's own tone, and a change back to it resets the
+  // channel to program 1, which is the piano on nearly every keyboard.
+  function sendHandSound(changed) {
+    const id = settings.get("output"), v = settings.get("handSound");
+    if (!id || (v === "" || v == null) && !changed) return;
+    const prog = v === "" || v == null ? 0 : +v;
+    for (const m of P.instrument.standard({ channel: 1, msb: 0, lsb: 0, program: prog })) midi.sendTo(id, m);
+  }
+
+  // A piece's piano setup: what you saved for it in Piano controls, else
+  // its lesson's `tone:` and `touch:`. The piano's own setup from before
+  // comes back when you leave for the library.
+  let pianoBefore = null;
+  function setupFor(target) {
+    const key = pieceKey();
+    const saved = key && (settings.get("pianoSetups") || {})[key];
+    if (saved) return saved;
+    const opts = { ...(lessonState && lessonState.meta || {}), ...(target && target.opts || {}) };
+    const { setup, bad } = P.instrument.setupFrom(opts, piano.model);
+    if (bad.length) toast(t("Your piano has no {name}", { name: bad.join(", ") }));
+    return setup;
+  }
+  function applyPianoSetup(target) {
+    if (piano.state !== "roland") return;
+    const setup = setupFor(target);
+    const keys = Object.keys(setup);
+    if (!keys.length) { restorePiano(); return; }
+    if (!pianoBefore) { const v = piano.values; pianoBefore = {}; for (const k of P.instrument.SETUP_KEYS) if (k in v) pianoBefore[k] = v[k]; }
+    // The mode first, so its tones land in the right place.
+    for (const k of ["mode", ...keys.filter((k) => k !== "mode")]) if (k in setup) piano.set(k, setup[k]);
+  }
+  function restorePiano() {
+    if (!pianoBefore) return;
+    const before = pianoBefore; pianoBefore = null;
+    if (piano.state !== "roland") return;
+    for (const k of ["mode", ...Object.keys(before).filter((k) => k !== "mode")]) if (k in before) piano.set(k, before[k]);
+  }
+  function savePianoSetup() {
+    const key = pieceKey();
+    if (!key) { toast(t("Open a piece or exercise first")); return; }
+    const v = piano.values, setup = {};
+    for (const k of P.instrument.SETUP_KEYS) if (k in v) setup[k] = v[k];
+    settings.set("pianoSetups", { ...(settings.get("pianoSetups") || {}), [key]: setup });
+    toast(t("Saved for {name}", { name: pieceTitle() }));
+    renderPianoPanel();
+  }
+  function forgetPianoSetup() {
+    const key = pieceKey(), all = { ...(settings.get("pianoSetups") || {}) };
+    if (!key || !all[key]) return;
+    delete all[key];
+    settings.set("pianoSetups", all);
+    toast(t("This piece no longer changes the piano"));
+    renderPianoPanel();
+  }
+
+  // The piano's own transpose shifts the notes it sends, so right notes
+  // would be judged wrong. Said once each time it changes away from 0.
+  let warnedTranspose = 0;
+  function checkTranspose() {
+    const tr = piano.values.transpose || 0;
+    if (piano.state !== "roland" || tr === warnedTranspose) return;
+    warnedTranspose = tr;
+    if (tr) toast(t("Your piano is transposed {n}. Notes may be judged wrong: set it to 0 in Piano → Piano controls.", { n: (tr > 0 ? "+" : "") + tr }), 6000);
   }
 
   // ---- the colour editor: a panel beside the app, so the change shows live ----
@@ -2492,6 +2599,8 @@
       { label: t("Piano"), items: () => [
         { label: t("Piano controls…"), checked: pianoOpen(), run: () => (pianoOpen() ? pianoDlg.close() : openPianoPanel()) },
         { label: piano.values.metronome ? t("Stop the piano's metronome") : t("Start the piano's metronome"), disabled: piano.state !== "roland", run: () => piano.toggleMetronome() },
+        { label: t("Set the piano's transpose to 0"), disabled: piano.state !== "roland" || !piano.values.transpose, run: () => piano.set("transpose", 0) },
+        { label: t("Remember the piano's setup for this piece"), disabled: piano.state !== "roland" || !pieceKey(), run: () => savePianoSetup() },
         "-",
         { label: t("Connect again"), disabled: piano.state === "off", run: () => connectPiano(pianoPort || guessPort()) },
         { label: t("MIDI settings…"), run: () => openSettings("piano") },
@@ -2542,7 +2651,8 @@
     await i18n.ready;
     i18n.apply();
     await midi.start();
-    if (settings.get("output")) midi.setOutput(settings.get("output"));
+    if (settings.get("output")) { midi.setOutput(settings.get("output")); sendHandSound(); }
+    if (settings.get("pianoPort")) { if (await midi.allowSysex()) connectPiano(guessPort()); }
     renderDevice();
     renderToday();
     await showLibrary();

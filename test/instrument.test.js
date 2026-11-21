@@ -158,4 +158,40 @@ test("standard MIDI: bank, program, volume and reverb on channel 1", () => {
   assert.deepStrictEqual(I.standard({ program: 5, channel: 3 }), [[0xc3, 5]]);
 });
 
+test("a tone by name: the model's names, or bank and number, ignoring case and dots", () => {
+  const fp30 = I.model("42 00 00 20");
+  assert.deepStrictEqual(I.findTone(fp30, "harpsichord 1"), { bank: 0, index: 4 });
+  assert.deepStrictEqual(I.findTone(fp30, "Clav"), { bank: 1, index: 3 });
+  assert.deepStrictEqual(I.findTone(null, "E. Piano 4"), { bank: 1, index: 3 });
+  assert.deepStrictEqual(I.findTone(fp30, "other 12"), { bank: 2, index: 11 });
+  assert.strictEqual(I.findTone(fp30, "Kazoo"), null);
+  assert.strictEqual(I.findTone(null, "Piano 0"), null);
+});
+
+test("a piece's setup from its lesson: tone and touch, and names that don't exist are reported", () => {
+  const fp30 = I.model("42 00 00 20");
+  assert.deepStrictEqual(I.setupFrom({ tone: "Harpsichord 2", touch: "Super light", tempo: 60 }, fp30),
+    { setup: { tone: { bank: 0, index: 5 }, touch: 1 }, bad: [] });
+  assert.deepStrictEqual(I.setupFrom({ tone: "Kazoo", touch: "squishy" }, fp30), { setup: {}, bad: ["Kazoo", "squishy"] });
+  assert.deepStrictEqual(I.setupFrom({}, fp30), { setup: {}, bad: [] });
+});
+
+test("universal master volume and tuning: 14 bits, low byte first", () => {
+  assert.deepStrictEqual(I.masterVolume(127), [0xf0, 0x7f, 0x7f, 0x04, 0x01, 0x7f, 0x7f, 0xf7]);
+  assert.deepStrictEqual(I.masterVolume(0), [0xf0, 0x7f, 0x7f, 0x04, 0x01, 0, 0, 0xf7]);
+  assert.deepStrictEqual(I.masterTuning(440), [0xf0, 0x7f, 0x7f, 0x04, 0x03, 0x00, 0x40, 0xf7]);
+  const up = I.masterTuning(442), cents = (((up[6] << 7) | up[5]) - 8192) / 8192 * 100;
+  assert.ok(Math.abs(cents - 7.85) < 0.1, "442 Hz is about +7.85 cents, got " + cents);
+  assert.strictEqual(I.describe(I.masterTuning(442)), "Master tuning 8 cents");
+});
+
+test("tone lists from makers' manuals: Yamaha with banks, Kawai program only", () => {
+  const y = I.STANDARD_MODELS["Yamaha P-125 / P-121"], k = I.STANDARD_MODELS["Kawai ES110"];
+  assert.strictEqual(y.length, 24);
+  assert.deepStrictEqual(y.find((x) => x[0] === "Harpsi.8'+4'"), ["Harpsi.8'+4'", 108, 1, 6]);
+  assert.strictEqual(k.length, 19);
+  const [, msb, lsb, program] = k.find((x) => x[0] === "Harpsichord");
+  assert.deepStrictEqual(I.standard({ msb, lsb, program }), [[0xc0, 17]]);
+});
+
 console.log(passed + " passed");

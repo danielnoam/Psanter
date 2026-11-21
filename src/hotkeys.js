@@ -29,8 +29,9 @@
       actionForKey(k) { if (!k) return null; for (const [a, b] of Object.entries(keys)) if (b && same(b, k)) return a; return null; },
       actionForNote(m) { return piano[m] || null; },
       bind(action, key) { for (const a of Object.keys(keys)) if (keys[a] && same(keys[a], key)) keys[a] = ""; keys[action] = key; return { ...keys }; },
-      bindNote(action, midi) { for (const m of Object.keys(piano)) if (piano[m] === action || +m === midi) delete piano[m]; if (midi != null) piano[midi] = action; return { ...piano }; },
-      noteFor(action) { for (const [m, a] of Object.entries(piano)) if (a === action) return +m; return null; },
+      // A piano key is its MIDI number; a pedal is "pedal67" (soft) or "pedal66" (middle).
+      bindNote(action, midi) { for (const m of Object.keys(piano)) if (piano[m] === action || String(m) === String(midi)) delete piano[m]; if (midi != null) piano[midi] = action; return { ...piano }; },
+      noteFor(action) { for (const [m, a] of Object.entries(piano)) if (a === action) return /^\d+$/.test(m) ? +m : m; return null; },
       reset() { keys = { ...DEFAULT_KEYS }; piano = {}; },
       get keys() { return { ...keys }; }, get piano() { return { ...piano }; },
     };
@@ -43,5 +44,6 @@
   }
 
   window.Piano = window.Piano || {};
-  window.Piano.hotkeys = { create, keyOf, label, ACTIONS, DEFAULT_KEYS };
+  const PEDALS = { pedal67: "Soft pedal", pedal66: "Middle pedal" };
+  window.Piano.hotkeys = { create, keyOf, label, ACTIONS, DEFAULT_KEYS, PEDALS };
 })();

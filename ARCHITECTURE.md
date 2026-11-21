@@ -193,6 +193,18 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
   piano, another keyboard mode); a value the piano reports moves its
   control in place, and never the slider that has focus, or a drag would
   jump back while the piano's echo is on its way.
+- A piece's piano setup (`settings.pianoSetups`, by `pieceKey()`) is
+  applied after `practice.load` in `activate`, and the setup from before
+  comes back in `showLibrary`. Front matter and practice options `tone`
+  and `touch` are read by `instrument.setupFrom`; a name the piano doesn't
+  have is a toast, not skipped quietly.
+- Standard-MIDI tones go out on channel 1. Roland's FP-X pianos play
+  their panel tone on channel 4 and only GM2 sounds on the others
+  (Roland support), so there a program change on channel 1 changes the
+  sound of notes sent in, not the keys. The app's hand sound (channel 2,
+  a GM program) works on them for the same reason.
+- The pedal shortcuts are "pedal67" and "pedal66" in the piano-key map
+  (`hotkeys.bindNote`); midi.js fires one on the press past half way.
 - The piano's messages are matched to its out port by name
   (`touch.deviceName`), since Web MIDI gives inputs and outputs different
   ids.

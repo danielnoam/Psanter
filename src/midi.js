@@ -6,11 +6,12 @@
   // Z and X move the octave.
   const KEYS = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ";": 16, "'": 17 };
 
-  function create({ onNote, onDevices, onPedal, touch }) {
+  function create({ onNote, onDevices, onPedal, onPedalKey, touch }) {
     let access = null, output = null, outputId = null;
     let status = "off"; // off | asking | on | denied | unsupported
     let sysex = false;
     const listeners = new Set();
+    const pedalsDown = new Set();
     const sounding = new Set();
     const T = window.Piano.touch;
     const keys = T.filter(touch || (() => ({})));
@@ -49,6 +50,13 @@
         if (vel != null) onNote(d1, on, vel, at, "midi");
       }
       else if (hi === 0xb0 && d1 === 64 && onPedal) onPedal(d2 >= 64);
+      // The soft (67) and middle (66) pedals can be shortcuts: a press is
+      // the moment one goes down past half way.
+      else if (hi === 0xb0 && (d1 === 66 || d1 === 67) && onPedalKey) {
+        const down = d2 >= 64;
+        if (down && !pedalsDown.has(d1)) onPedalKey("pedal" + d1);
+        if (down) pedalsDown.add(d1); else pedalsDown.delete(d1);
+      }
       if (!on && !off && listeners.size) for (const fn of listeners) fn(e.data, e.target ? T.deviceName(e.target.name) : "");
     }
 

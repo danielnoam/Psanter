@@ -48,4 +48,17 @@ test("labels are readable", () => {
   assert.strictEqual(hotkeys.label(""), "—");
 });
 
+test("a pedal can be a shortcut, beside the piano keys", () => {
+  const h = hotkeys.create({}, {});
+  h.bindNote("barBack", 21);
+  h.bindNote("restart", "pedal67");
+  assert.strictEqual(h.actionForNote("pedal67"), "restart");
+  assert.strictEqual(h.noteFor("restart"), "pedal67");
+  assert.strictEqual(h.noteFor("barBack"), 21);
+  h.bindNote("loop", "pedal67");
+  assert.strictEqual(h.noteFor("restart"), null, "a pedal moves to its new action");
+  h.bindNote("loop", null);
+  assert.strictEqual(h.actionForNote("pedal67"), null);
+});
+
 console.log(passed + " passed");
