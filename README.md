@@ -100,6 +100,26 @@ watches it and reloads a lesson when you save it in your editor.
 - Time to review: learned pieces come back after 1, 3, 7, 14, 30 and 60
   days.
 
+### Your piano's own panel
+- Piano → Piano controls, beside the app: change the piano's tone, volume,
+  ambience, brilliance, key touch, split and dual, transpose, tuning and
+  its metronome, and see changes made on the piano's own buttons.
+- On Roland pianos that use Roland's app protocol (mapped on the FP-10 and
+  FP-30 by others; other models are tried and may work). Any other
+  keyboard gets standard MIDI: tone by bank and program, volume, reverb.
+- "What the piano sends" logs every message that isn't a note, so a model
+  nobody has mapped can be learned from its buttons.
+- A piece remembers the piano's tone, touch and keyboard mode ("Remember
+  for this piece"), or a lesson sets them (`tone: Harpsichord 1`,
+  `touch: light` in its front matter); the piano goes back when you leave.
+- A warning when the piano's own transpose isn't 0, since its notes then
+  come in shifted.
+- The app's hand in its own sound on your piano (strings, organ…), and the
+  soft or middle pedal as a shortcut (Settings → Shortcuts).
+- Named tones for the Yamaha P-125/P-121 and Kawai ES110 from their MIDI
+  manuals, and universal master volume and tuning, for keyboards without
+  Roland's protocol.
+
 ### Seeing it
 - The score (abcjs for ABC, OpenSheetMusicDisplay for MusicXML) follows
   along and marks each note hit, late or missed.
