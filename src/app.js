@@ -606,7 +606,7 @@
       box.append(cb, el("span", null, t("Also keep unrated pieces (about ten times as many, mostly single-line tunes)")));
       pg.append(
         el("p", null, t("PDMX is about 250,000 scores shared on MuseScore and marked public domain by their uploaders, collected by researchers at UC San Diego (CC BY 4.0).")),
-        el("p", null, t("Getting it downloads about 2.1 GB from Zenodo and keeps only the solo piano pieces that other people have rated: about 3,800 pieces, around 30 MB. Nothing else is kept.")),
+        el("p", null, t("Getting it downloads about 2.1 GB from Zenodo and keeps only the solo piano pieces that other people have rated: about 3,800 pieces, around 75 MB. Nothing else is kept.")),
         el("p", "dim", t("Uploaders' licence marks aren't checked by anyone. Film, game and pop arrangements are for your own practice, not to share.")),
         box,
         rowOf(button(t("Get the collection"), "btn primary", async () => {

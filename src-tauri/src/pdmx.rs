@@ -174,10 +174,20 @@ fn open(file: &str) -> Result<(reqwest::blocking::Response, u64), String> {
         }))
         .build()
         .map_err(|e| e.to_string())?;
-    let res = client.get(format!("{RECORD}{file}?download=1")).send().map_err(|e| e.to_string())?;
-    if !res.status().is_success() {
-        return Err(format!("Zenodo answered HTTP {}", res.status().as_u16()));
-    }
+    // Zenodo now and then answers 504 for a moment.
+    let mut tries = 0;
+    let res = loop {
+        tries += 1;
+        let r = client.get(format!("{RECORD}{file}?download=1")).send();
+        match r {
+            Ok(res) if res.status().is_success() => break res,
+            Ok(res) if tries < 4 && res.status().is_server_error() => {}
+            Ok(res) => return Err(format!("Zenodo answered HTTP {}", res.status().as_u16())),
+            Err(_) if tries < 4 => {}
+            Err(e) => return Err(e.to_string()),
+        }
+        std::thread::sleep(std::time::Duration::from_secs(3 * tries));
+    };
     let len = res.content_length().unwrap_or(0);
     Ok((res, len))
 }

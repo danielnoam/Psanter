@@ -113,7 +113,7 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
   and 1.9 GB MusicXML archive from `zenodo.org` (fixed URLs, https-only
   redirects) and reads both as they arrive, keeping only rated solo piano
   pieces (General MIDI 0-3, one or two parts, deduplicated, no licence
-  conflict): about 3,800 scores, 30 MB, in `<data>\PDMX`. Nothing is
+  conflict): about 3,800 scores, 75 MB, in `<data>\PDMX`. Nothing is
   hosted by us. The licences are MuseScore uploaders' own marks, and
   film, game and pop arrangements among them are still under copyright:
   fine to practise, not to share, and the app says so before the
