@@ -89,6 +89,11 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 - **MIDI is granted without asking** in the Windows app
   (`main.rs`, `on_permission_request`). The window only ever loads the
   app's own files.
+- **The page can open any http(s) or mailto address in the browser**
+  (`capabilities/default.json`, the opener's scope; keel's `openOutside`
+  sends every link out through it). Nothing else, so no `file:` or
+  program paths. A link in a downloaded lesson can open a site, the same
+  as clicking it in a browser would.
 - **SysEx is asked for when Piano controls opens**, not at the start
   (`midi.allowSysex`). In the Windows app the existing MIDI grant already
   covers it: wry's `PermissionKind::Midi` is WebView2's
