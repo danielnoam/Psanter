@@ -138,7 +138,7 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
 - **English only.** keel's i18n is loaded but there is no second language.
 - **Progress lives in this computer's storage** (localStorage
   `piano.progress`), not in the lesson folders: built-in lessons have no
-  folder, and a folder can be shared. Settings → Your progress saves and
+  folder, and a folder can be shared. Library → Progress saves and
   loads a copy.
 - **pdf.js is an ES module**, loaded with `import()` the first time a book
   opens, and runs in a module worker (`worker-src 'self'`). Font eval is
