@@ -4,6 +4,35 @@ Every release of Piano, newest first, in words a person using it would
 use. Written only by `node tools/release.js x.y.z`, from the notes in
 `changes/`.
 
+## [1.1.0] - 2026-11-22
+
+### Added
+- Settings → About → Updates has a switch for checking for updates when the app starts. It's on by default; turned off, Psanter only checks when you press Check now.
+- Find music, in the library: search the Mutopia Project's free piano music (public domain or Creative Commons) by title, keyword or composer, and download a piece into one of your folders. It arrives as a lesson with the MIDI file to practise, the sheet music as a PDF beside it, and where it came from and its licence. A list of good places to start (Bach's minuets, Schumann's Album for the Young, Clementi's sonatinas, Satie and more) searches with one click. Windows app only.
+- A Search IMSLP button opens IMSLP's search in your browser, for scores that are only PDFs.
+- Find music can also search the PDMX collection: about 3,800 rated solo piano scores shared on MuseScore, classical, folk, film and game music alike. Get it once from Find music (it downloads about 2.1 GB from Zenodo and keeps around 75 MB), then search by title, composer or genre and by level with no connection, and add a piece to one of your folders as a MusicXML lesson. Windows app only.
+- Piano → Piano controls: change your piano's own tone, volume, ambience, brilliance, key touch, split and dual, transpose, tuning and metronome from the app, in a panel beside it. Roland pianos that speak Roland's app protocol get all of it (known on the FP-10 and FP-30, tried on any Roland); other keyboards get tone, volume and reverb over standard MIDI.
+- "What the piano sends" in the same panel logs what the piano reports when you press its buttons, to map a model the app doesn't know yet.
+- A piece can remember the piano's tone, touch and keyboard mode, and a lesson can set them with `tone:` and `touch:` in its front matter. The piano goes back to how it was when you return to the library.
+- A warning when your piano's own transpose isn't 0, since the notes it sends are then shifted and judged wrong. Piano → Set the piano's transpose to 0 fixes it.
+- The app's hand can play in its own sound on your piano (Settings → Piano → The app's hand sounds like).
+- The soft and middle pedals can be shortcuts, like a piano key (Settings → Shortcuts).
+- For other keyboards: named tones for the Yamaha P-125/P-121 and Kawai ES110 from their MIDI manuals, plus master volume and tuning that most keyboards take.
+- Recital mode: play a whole piece without stopping for points, a combo that multiplies them for notes in a row, and up to five stars from how much was right. The best stars for each piece show in the library.
+- Watch and listen: the app plays the piece, both hands, while you follow the score and the falling notes. A hand set to off stays quiet.
+- Songs, a third built-in course: Twinkle, Twinkle; Frère Jacques as a round; Amazing Grace; Auld Lang Syne; Greensleeves; the opening of Für Elise; Canon in D; and the first bars of Bach's Prelude in C, each in an easy two-hand arrangement.
+- Recording in layers: after a take, Practice → Record a layer plays it back while you record another part over it, saved together as one MIDI file.
+
+### Changed
+- With the switch on, Psanter checks for a new version every time it starts, not once a day.
+- The app is now called Psanter: the window title, About, the exe (Psanter.exe) and the zip (Psanter-<version>-windows). Your settings, progress and the Data folder carry over: put Psanter.exe in the folder that holds your Data folder, or copy that folder (and piano-data.json, if you have one) next to the new exe. The 1.0.0 updater looks for Piano.exe, so it won't find this version; download it by hand once.
+- Settings opens from one button, the sliders icon at the top right (or File → Settings, Ctrl+,). The extra Settings button at the bottom of the library sidebar is gone, and the piano status at the bottom left is now just a status.
+- All sound settings are on the Sound page: where the app's notes play, the app's hand's sound and "Play my notes in the app too" moved there from the Piano page.
+- Saving and loading a copy of your progress moved from Settings to the library's Progress page, beside the progress itself.
+
+### Fixed
+- Links to other sites (Search IMSLP, What's new, the PDMX page and links in lessons) did nothing in the Windows app. They open in your browser now.
+
 ## [1.0.0] - 2026-11-20
 
 ### Added

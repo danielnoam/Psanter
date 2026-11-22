@@ -4,7 +4,7 @@
 // the library, a lesson with its practice panels, the transport bar and
 // Settings.
 (function () {
-  const APP_VERSION = "1.0.0";
+  const APP_VERSION = "1.1.0";
   const K = window.Keel;
   const P = window.Psanter;
   const $ = (id) => document.getElementById(id);
