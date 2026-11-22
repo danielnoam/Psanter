@@ -107,7 +107,9 @@ here: fix them in keel, release it, then `node tools/keel-sync.js v<x.y.z>`.
   restart when the permission lapsed.
 - **No installer; the zip updates itself** (`portable.rs`). It reads the
   latest release from GitHub's API without a token, so the repo's releases
-  must be public. It installs only a Psanter.exe whose minisign signature
+  must be public. It asks on every start unless Settings → About turns
+  that off (`autoUpdate`), so GitHub sees this computer's address each
+  start; nothing installs without a click. It installs only a Psanter.exe whose minisign signature
   matches `src-tauri/updater.pub`; the private key is the
   `TAURI_SIGNING_PRIVATE_KEY` secret, used only by desktop.yml. A copy in a
   read-only folder (Program Files) can't update and says so.

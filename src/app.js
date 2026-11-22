@@ -18,7 +18,7 @@
     lookahead: 3, range: "song", volume: 0.7, autoVolume: 0.8, room: 0.16, output: "", layout: null, last: null,
     noteNames: "off", fingers: true, autoSpeed: false, autoSpeedGoal: 100, colors: { light: {}, dark: {} },
     keys: {}, pianoKeys: {}, bookPages: {}, effects: null, lightChannel: -1, goal: 15, latency: 0, midiHands: {}, sound: "grand",
-    touch: "normal", touchFloor: 0, doubles: true, skipEmptyBars: true, prompter: true,
+    touch: "normal", touchFloor: 0, doubles: true, skipEmptyBars: true, prompter: true, autoUpdate: true,
     drill: { type: "reading", hand: "right", range: "five", key: "C", rhythm: "quarters", bars: 4, tempo: 70, next: true, octaves: 1, count: 4, earRange: "five" } };
   const settings = (() => {
     let data = { ...DEFAULTS };
@@ -1442,7 +1442,6 @@
     try {
       update = await invoke("update_check");
       updateState = update ? "ready" : "current";
-      settings.set("updateChecked", Date.now());
     } catch (e) {
       updateState = "failed";
       if (byHand) toast(t("Couldn't reach GitHub to check for updates: {why}", { why: String(e) }));
@@ -1473,13 +1472,15 @@
   function updatesGroup() {
     if (!K.platform.desktop) return null;
     const state = { checking: t("Checking…"), current: t("This is the newest version."), failed: t("Couldn't reach GitHub."), installing: t("Downloading and checking the signature…") }[updateState]
-      || (update ? t("Version {v} is ready.", { v: update.version }) : t("Checked when the app starts, once a day."));
+      || (update ? t("Version {v} is ready.", { v: update.version }) : "");
     const btns = el("div", "row");
     if (update) {
       btns.appendChild(button(t("Update and restart"), "btn primary", () => installUpdate()));
       btns.appendChild(button(t("What's new"), "btn", () => K.platform.openOutside(update.page)));
     } else btns.appendChild(button(t("Check now"), "btn", () => checkUpdate(true)));
-    return setGroup(t("Updates"), setting(t("Updates"), btns, state + " " + t("A new version replaces Psanter.exe in its folder, only when it carries Psanter's signature.")));
+    return setGroup(t("Updates"),
+      toggle(t("Check for updates when the app starts"), "autoUpdate", t("Asks GitHub for the newest release. Nothing installs until you choose Update and restart.")),
+      setting(t("Check for updates"), btns, (state ? state + " " : "") + t("A new version replaces Psanter.exe in its folder, only when it carries Psanter's signature.")));
   }
   function dataGroup() {
     if (!K.platform.desktop) return null;
@@ -2877,7 +2878,7 @@
     renderToday();
     await showLibrary();
     $("update").addEventListener("click", () => installUpdate());
-    if (K.platform.desktop && Date.now() - (settings.get("updateChecked") || 0) > 20 * 3600 * 1000) setTimeout(() => checkUpdate(false), 4000);
+    if (K.platform.desktop && settings.get("autoUpdate")) setTimeout(() => checkUpdate(false), 4000);
   }
 
   // The web copy works offline through sw.js; the desktop app has its
