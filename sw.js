@@ -6,7 +6,7 @@
 //
 // CACHE goes up with every release (tools/release.js). A file added to or
 // removed from the app goes in or out of ASSETS (test/app.test.js checks).
-const CACHE = "psanter-v1";
+const CACHE = "psanter-v2";
 const ASSETS = [
   "./",
   "./index.html",
