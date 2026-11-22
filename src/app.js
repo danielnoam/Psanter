@@ -120,7 +120,6 @@
     else if (d.inputs.length) name.textContent = d.inputs.map((i) => i.name).join(", ");
     else name.textContent = t("No piano connected");
     chip.append(dot, name);
-    chip.title = t("Piano and sound settings");
     if ($("settings").open) renderSettings();
   }
 
@@ -169,9 +168,7 @@
     }
     const free = button("", null, () => openFree());
     free.append(icon("keyboard"), el("span", null, t("Free play")));
-    const set = button("", null, () => openSettings());
-    set.append(icon("sliders"), el("span", null, t("Settings")));
-    nav.append(free, el("span", "grow"), set);
+    nav.append(free);
 
     const main = el("div", "lib-main");
     const view = { all: libraryView, review: reviewView, today: todayView, drills: drillsView, progress: progressView, find: findView }[libView] || libraryView;
@@ -678,10 +675,28 @@
     const body = el("div", "lib-body single");
     const scroll = el("div", "lib-scroll");
     const pg = el("div", "lib-page");
-    pg.appendChild(daysCard());
+    const days = progress.all().days;
+    const tiles = el("div", "tiles");
+    tiles.append(tile(minutes(Object.values(days).reduce((a, b) => a + b, 0)), t("practised")), tile(String(keys.length), t("pieces and drills")), tile(String(progress.streak(today())), t("days in a row")));
+    pg.append(tiles, daysCard());
     const table = fileTable([t("Name"), t("Practised"), t("Runs"), t("Best tempo"), t("Last practised")], rows, () => {});
     scroll.append(pg, table); body.appendChild(scroll);
-    return [libHead(t("Progress"), t("Library")), commands(el("span", "note", t("Every lesson exercise and piece you've practised, newest first."))), body];
+    const save = cmd(t("Save a copy"), "download", () => downloadBytes(new TextEncoder().encode(JSON.stringify(progress.all(), null, 1)), "piano-progress.json", "application/json"));
+    save.title = t("Kept on this computer only. A copy moves it to another one.");
+    const load = cmd(t("Load a copy"), "upload", loadProgress);
+    load.title = t("Replaces what's here with the copy.");
+    return [libHead(t("Progress"), t("Library")), commands(save, load, el("span", "note", t("Every lesson exercise and piece you've practised, newest first."))), body];
+  }
+
+  function loadProgress() {
+    const input = document.createElement("input"); input.type = "file"; input.accept = ".json,application/json";
+    input.addEventListener("change", async () => {
+      const f = input.files[0]; if (!f) return;
+      let ok = false; try { ok = progress.replace(JSON.parse(await f.text())); } catch (e) { ok = false; }
+      toast(ok ? t("Progress loaded") : t("That file isn't saved progress from this app."));
+      if (ok) renderLibrary();
+    });
+    input.click();
   }
 
   function pickFiles(folder) {
@@ -1256,7 +1271,6 @@
       ["sound", "volume", t("Sound"), soundPage],
       ["shortcuts", "keyboard", t("Shortcuts"), shortcutsSection],
       ["look", "palette", t("Look"), lookPage],
-      ["progress", "chart", t("Your progress"), progressPage],
       ["about", "info", t("About"), aboutPage],
     ];
     if (!pages.some((p) => p[0] === settingsTab)) settingsTab = "piano";
@@ -1327,9 +1341,6 @@
     const card = el("div", "device-card" + (ok ? " on" : ""));
     card.append(icon("piano", 22), el("div", "grow"));
     card.lastChild.append(el("strong", null, ok ? t("Connected") : t("No piano")), el("span", "dim", status));
-    const out = select([["", t("The app's own sound")], ...d.outputs.map((o) => [o.id, o.name])], settings.get("output") || "", (v) => { settings.set("output", v); midi.setOutput(v); sendHandSound(); renderSettings(); });
-    const hand = select([["", t("The piano's own tone")], ...P.instrument.HAND_SOUNDS.map(([n, name]) => [String(n), t(name)])], settings.get("handSound") ?? "",
-      (v) => { settings.set("handSound", v); sendHandSound(true); });
     const lights = select([["-1", t("Off")], ...Array.from({ length: 16 }, (_, c) => [String(c), t("Channel {n}", { n: c + 1 })])], String(settings.get("lightChannel")),
       (v) => { midi.light([], settings.get("lightChannel")); settings.set("lightChannel", +v); });
     const lat = range(0, 300, 5, settings.get("latency"), (v) => { settings.set("latency", v); practice && practice.engine.setLatency(v); }, (v) => t("{n} ms", { n: v }));
@@ -1347,10 +1358,6 @@
         setting(t("Touch response"), curve, t("How hard a press counts. If loud and soft are judged wrong for how you play, change this first.")),
         setting(t("Ignore presses lighter than"), floor, t("For a keyboard that sends a note when you only brush a key.")),
         toggle(t("Count a key once"), "doubles", t("Drops a second press of the same key within 40 ms, for a keyboard Windows lists twice."))),
-      setGroup(t("Sound"),
-        setting(t("The app's notes play on"), out, t("Your piano, if it has MIDI in, or the app's own sound.")),
-        settings.get("output") ? setting(t("The app's hand sounds like"), hand, t("A different sound for the hand the app plays, so you can tell it from yours. Most pianos have these; some ignore them.")) : null,
-        toggle(t("Play my notes in the app too"), "echo", t("For a keyboard with no speakers of its own."))),
       setGroup(t("Playing"),
         latRow,
         toggle(t("Computer keyboard as a piano"), "typing", t("A is middle C; Z and X change octave.")),
@@ -1374,8 +1381,16 @@
   }
 
   function soundPage() {
+    const d = midi.devices();
+    const out = select([["", t("The app's own sound")], ...d.outputs.map((o) => [o.id, o.name])], settings.get("output") || "", (v) => { settings.set("output", v); midi.setOutput(v); sendHandSound(); renderSettings(); });
+    const hand = select([["", t("The piano's own tone")], ...P.instrument.HAND_SOUNDS.map(([n, name]) => [String(n), t(name)])], settings.get("handSound") ?? "",
+      (v) => { settings.set("handSound", v); sendHandSound(true); });
     return page(t("Sound"), null,
-      setGroup(null,
+      setGroup(t("Where it plays"),
+        setting(t("The app's notes play on"), out, t("Your piano, if it has MIDI in, or the app's own sound.")),
+        settings.get("output") ? setting(t("The app's hand sounds like"), hand, t("A different sound for the hand the app plays, so you can tell it from yours. Most pianos have these; some ignore them.")) : null,
+        toggle(t("Play my notes in the app too"), "echo", t("For a keyboard with no speakers of its own."))),
+      setGroup(t("The app's sound"),
         setting(t("Piano"), select([["grand", t("Grand piano (recorded)")], ["simple", t("Simple (made by the app)")]], settings.get("sound"), (v) => { settings.set("sound", v); synth.setSound(v); }),
           t("The grand is a recorded Yamaha; the simple one loads nothing.")),
         setting(t("Volume"), range(0, 1, 0.05, settings.get("volume"), (v) => { settings.set("volume", v); synth.setVolume(v); }, (v) => Math.round(v * 100) + "%")),
@@ -1395,29 +1410,6 @@
         setting(t("Colours"), editColours, t("Change any colour, for light and dark, with a check that text stays readable.")),
         setting(t("Glow and sparks on the keys"), fx, t("Off when Windows asks for less motion.")),
         setting(t("Panel layout"), reset, t("To move panels, use the layout button at the top of a lesson."))));
-  }
-
-  function progressPage() {
-    const exp = button(t("Save a copy"), "btn", () => downloadBytes(new TextEncoder().encode(JSON.stringify(progress.all(), null, 1)), "piano-progress.json", "application/json"));
-    exp.prepend(icon("download"));
-    const imp = button(t("Load a copy"), "btn", () => {
-      const input = document.createElement("input"); input.type = "file"; input.accept = ".json,application/json";
-      input.addEventListener("change", async () => {
-        const f = input.files[0]; if (!f) return;
-        let ok = false; try { ok = progress.replace(JSON.parse(await f.text())); } catch (e) { ok = false; }
-        toast(ok ? t("Progress loaded") : t("That file isn't saved progress from this app."));
-      });
-      input.click();
-    });
-    imp.prepend(icon("upload"));
-    const all = progress.all();
-    const pieces = Object.keys(all.pieces).length, secs = Object.values(all.days).reduce((a, b) => a + b, 0);
-    const tiles = el("div", "tiles");
-    tiles.append(tile(minutes(secs), t("practised")), tile(String(pieces), t("pieces and drills")), tile(String(progress.streak(today())), t("days in a row")));
-    return page(t("Your progress"), tiles,
-      setGroup(null,
-        setting(t("Save a copy"), exp, t("Kept on this computer only. A copy moves it to another one.")),
-        setting(t("Load a copy"), imp, t("Replaces what's here with the copy."))));
   }
 
   function aboutPage() {
@@ -2864,7 +2856,6 @@
     $("settings-btn").appendChild(icon("sliders"));
     $("settings-btn").title = t("Settings"); $("settings-btn").setAttribute("aria-label", t("Settings"));
     $("settings-btn").addEventListener("click", () => openSettings());
-    $("device").addEventListener("click", () => openSettings("piano"));
     buildMenus();
     renderDevice();
     buildPanels();
